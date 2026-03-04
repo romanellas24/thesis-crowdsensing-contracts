@@ -19,6 +19,10 @@ contract PrivacyFirstContract {
     string private _ownerPubKey;
     Config private _config;
     bytes private _initiatorPublicKey;
+    //users that have enrolled (waiting for B's encryption key publishing)
+    mapping(address => bool) private _senderEnrolledRequest;
+    mapping(address => bool) private _verifierEnrolledRequest;
+    //Effective enrolled users
     mapping(address => bool) private _senders;
     mapping(address => bool) private _verifiers;
     //DST INFO
@@ -72,8 +76,9 @@ contract PrivacyFirstContract {
     }
 
     function publishEncryptedSenderPublicKey(string calldata encryptedPubKey) public virtual {
-        address sender = msg.sender;
-        emit SenderEnrolledEvent(sender, encryptedPubKey);
+        require(!_senderEnrolledRequest[msg.sender], "Sender has already requested to join");
+        _senderEnrolledRequest[msg.sender] = true;
+        emit SenderEnrolledEvent(msg.sender, encryptedPubKey);
     }
 
     function publishSenderEncryptionKey(address sender, string calldata encryptionKey) public virtual {
@@ -83,11 +88,12 @@ contract PrivacyFirstContract {
     }
 
     function publishEncryptedVerifierPublicKey(string calldata encryptedPubKey) public virtual {
-        address verifier = msg.sender;
-        emit VerifierEnrolledEvent(verifier, encryptedPubKey);
+        require(!_verifierEnrolledRequest[msg.sender], "Verifier has already requested to join");
+        _verifierEnrolledRequest[msg.sender] = true;
+        emit VerifierEnrolledEvent(msg.sender, encryptedPubKey);
     }
 
-    function publishVerifierEncryptionKey(address verifier, string calldata decryptionKey) public virtual {
+    function publishVerifierDecryptionKey(address verifier, string calldata decryptionKey) public virtual {
         require(msg.sender == _owner, "Not the owner");
         _verifiers[verifier] = true;
         emit VerifierDecryptionKeyReady(verifier, decryptionKey);
@@ -137,21 +143,6 @@ contract PrivacyFirstContract {
     // Private methods - REFERS TO PAYMENTS
     // ------------------------------------
 
-    function userPayContract(bool isSender) internal {
-        require(_owner != msg.sender, "Owner can settle only the initial supply");
-        if (isSender == true) {
-            require(_senders[msg.sender] == true, "Not a sender");
-            _dstContract.transferFrom(msg.sender, address(this), _config.rewardConfig.dataSenderBond);
-            _senderSupplyBond = _senderSupplyBond + _config.rewardConfig.dataSenderBond;
-        } else {
-            require(_verifiers[msg.sender] == true, "Not a verifier");
-            _dstContract.transferFrom(msg.sender, address(this), _config.rewardConfig.dataVerifierBond);
-            _verifierSupplyBond = _verifierSupplyBond + _config.rewardConfig.dataVerifierBond;
-        }
-
-        //TODO SALVARE I SENDER/VERIFIERS AL DATO CHE HANNO INVIATO O STANNO VERIFICANDO
-    }
-
     function _userPayContract(bool isSender) internal {
         require(msg.sender != _owner, "Owner can settle only the initial supply");
 
@@ -160,6 +151,8 @@ contract PrivacyFirstContract {
         } else {
             _payVerifier();
         }
+
+        //TODO SALVARE I SENDER/VERIFIERS AL DATO CHE HANNO INVIATO O STANNO VERIFICANDO
     }
 
     function _paySender() internal {
