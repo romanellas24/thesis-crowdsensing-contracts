@@ -1,0 +1,35 @@
+# Environment
+.env
+
+# Dependencies
+node_modules/
+
+# Hardhat
+cache/
+artifacts/
+/typechain
+typechain-types/
+
+
+# Coverage
+coverage/
+coverage.json
+
+# Build
+dist/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Misc
+*.log
+
+#Ignition
+ignition/deployments/
