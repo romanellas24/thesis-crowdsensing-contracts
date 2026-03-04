@@ -285,7 +285,7 @@ describe("[INIT PHASE - VERIFIER] PrivacyFirstContract", function () {
         const vKeyObject = JSON.parse(verifierInfo.key);
         const vKey = cipher.decryptStringHybrid(ownerKeys.privateKey, vKeyObject);
         const encryptionKey = cipher.encryptStringHybrid(vKey, encryptionKeys.encryptionKey);
-        await privacyContract.connect(owner).publishVerifierEncryptionKey(verifierInfo.verifier, JSON.stringify(encryptionKey))
+        await privacyContract.connect(owner).publishVerifierDecryptionKey(verifierInfo.verifier, JSON.stringify(encryptionKey))
     });
 
 
@@ -321,7 +321,7 @@ describe("[INIT PHASE - VERIFIER] PrivacyFirstContract", function () {
         const vKeyObject = JSON.parse(verifierInfo.key);
         const vKey = cipher.decryptStringHybrid(ownerKeys.privateKey, vKeyObject);
         const decryptionKey = cipher.encryptStringHybrid(vKey, encryptionKeys.decryptionKey);
-        await privacyContract.connect(owner).publishVerifierEncryptionKey(verifierInfo.verifier, JSON.stringify(decryptionKey))
+        await privacyContract.connect(owner).publishVerifierDecryptionKey(verifierInfo.verifier, JSON.stringify(decryptionKey))
         let encryptedKey = (await waitForEncryptionKey).key;
         encryptedKey = cipher.decryptStringHybrid(verifierKeys.privateKey, JSON.parse(encryptedKey));
         expect(encryptedKey).to.equal(encryptionKeys.decryptionKey);
