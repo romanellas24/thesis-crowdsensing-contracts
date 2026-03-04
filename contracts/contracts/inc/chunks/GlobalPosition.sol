@@ -44,6 +44,12 @@ library GlobalPositionLibrary {
         }
     }
 
+    /// @notice Packs a GlobalPosition (integer + decimal parts) into a single
+    ///         int32 per axis in E7 format (1e-7 degree precision, ~1.1cm).
+    ///         Example: lat 44 DEG 1234567 => 441234567
+    ///         For negative values, the decimal part is subtracted: -9 DEG 5000000 => -95000000
+    /// @param p The unpacked position with separate integer and decimal components
+    /// @return PackedPosition with latE7 and lonE7 as compact int32 values
     function packCoordinates(GlobalPosition memory p) internal pure returns (PackedPosition memory) {
         int64 latBase = int64(p.latitudeInteger) * 10_000_000;
         int64 lonBase = int64(p.longitudeInteger) * 10_000_000;

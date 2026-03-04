@@ -2,8 +2,8 @@
 pragma solidity ^0.8.24;
 
 struct PackedPosition {
-    int32 latE7; // es. 45.1234567° -> 451234567
-    int32 lonE7; // es.  9.0000000° ->  90000000
+    int32 latE7; // es. 45.1234567 DEG -> 451234567
+    int32 lonE7; // es.  9.0000000 DEG ->  90000000
 }
 
 library PackedPositionLibrary {

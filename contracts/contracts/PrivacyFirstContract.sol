@@ -3,8 +3,10 @@ pragma solidity ^0.8.28;
 
 import "./inc/chunks/GlobalPosition.sol";
 import "./inc/config/Config.sol";
+import "./inc/data/DataEntry.sol";
 import "hardhat/console.sol";
 import {DataSentTokenContract} from "./DataSentTokenContract.sol";
+
 
 contract PrivacyFirstContract {
 
@@ -25,6 +27,10 @@ contract PrivacyFirstContract {
     //Effective enrolled users
     mapping(address => bool) private _senders;
     mapping(address => bool) private _verifiers;
+    //data containing
+    mapping(uint256 => DataEntry) private _dataEntries;
+    uint256 private _dataCount;
+
     //DST INFO
     bool private _initialSupplySettled;
     uint private _remainingSupply;
@@ -41,7 +47,7 @@ contract PrivacyFirstContract {
     event SenderEncryptionKeyReady(address sender, string encryptionKey);
     event VerifierEnrolledEvent(address indexed verifier, string key);
     event VerifierDecryptionKeyReady(address sender, string decryptionKey);
-    event DataVerificationRequestedEvent(address indexed requester);
+    event DataVerificationRequestedEvent(uint256);
     event VerifierElected(address indexed verifier, bytes encryptedCid);
 
     // ---------------------------
@@ -111,9 +117,18 @@ contract PrivacyFirstContract {
         // TODO: IMPLEMENT
     }
 
-    function publishIpfsCid(bytes memory cid) public virtual {
-        require(_senders[msg.sender] == true, "Only senders allowed");
-        //TODO CONTINUE HERE
+    function publishIpfsCid(bytes memory encryptedCid) public virtual {
+        require(_senders[msg.sender], "Only senders allowed to send data.");
+
+        _dataEntries[_dataCount] = DataEntry({
+            sender: msg.sender,
+            encryptedCid: encryptedCid,
+            status: DataStatus.PENDING,
+            assignedVerifier: address(0)
+        });
+
+        emit DataVerificationRequestedEvent(_dataCount);
+        _dataCount++;
     }
 
     function requestAuthToVerify() public virtual {
