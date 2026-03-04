@@ -208,6 +208,16 @@ describe("[INIT PHASE - SENDER] PrivacyFirstContract", function () {
         promises.push(utils.setupSenderPrivacy(sender3, privacyContract));
         await Promise.all(promises);
     });
+
+    it("[SENDER]: Sender1 duplicate the enrollment request", async function () {
+        const {privacyContract} = await loadFixture(contractDeployment);
+        await utils.setupOwnerPrivacy(owner, privacyContract, ownerKeys);
+        await utils.setupSenderPrivacy(sender1, privacyContract);
+        expect(
+            utils.setupSenderPrivacy(sender1, privacyContract)
+        ).to.be.revertedWith("Sender has already requested to join'")
+    });
+
 });
 
 describe("[INIT PHASE - VERIFIER] PrivacyFirstContract", function () {
@@ -327,7 +337,29 @@ describe("[INIT PHASE - VERIFIER] PrivacyFirstContract", function () {
         expect(encryptedKey).to.equal(encryptionKeys.decryptionKey);
     });
 
-    //TODO MAKE FUNCTIONS TO MAKE TESTING LESS BOILERPLATE
+    it("[SENDER]: Sends encrypted CID to SC", async function () {
+        const {privacyContract} = await loadFixture(contractDeployment);
+        await utils.setupOwnerPrivacy(owner, privacyContract, ownerKeys);
+        await utils.setupSenderPrivacy(sender1, privacyContract);
+        const cid1 = ethers.toUtf8Bytes("QmEncryptedCid_1");
+        const cid2 = ethers.toUtf8Bytes("QmEncryptedCid_2");
+        const cid3 = ethers.toUtf8Bytes("QmEncryptedCid_3");
+
+        await expect(
+            privacyContract.connect(sender1).publishIpfsCid(cid1)
+        ).to.emit(privacyContract, "DataVerificationRequestedEvent")
+            .withArgs(0);
+
+        await expect(
+            privacyContract.connect(sender1).publishIpfsCid(cid2)
+        ).to.emit(privacyContract, "DataVerificationRequestedEvent")
+            .withArgs(1);
+
+        await expect(
+            privacyContract.connect(sender1).publishIpfsCid(cid3)
+        ).to.emit(privacyContract, "DataVerificationRequestedEvent")
+            .withArgs(2);
+    });
 
 
 });
