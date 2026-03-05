@@ -6,5 +6,7 @@ import "./DataEnum.sol";
         address sender;
         bytes encryptedCid;
         DataStatus status;
-        address assignedVerifier;
+        uint8 completedChecks;
+        uint8 positiveChecks;
+        uint8 assignedChecks;
     }
