@@ -4,6 +4,9 @@ pragma solidity ^0.8.28;
 import "./inc/chunks/GlobalPosition.sol";
 import "./inc/config/Config.sol";
 import "./inc/data/DataEntry.sol";
+import "./inc/data/VerificationSlot.sol";
+import "./inc/verifiers/VerificationResult.sol";
+import "./inc/verifiers/VerifierInformation.sol";
 import "hardhat/console.sol";
 import {DataSentTokenContract} from "./DataSentTokenContract.sol";
 
@@ -30,6 +33,9 @@ contract PrivacyFirstContract {
     //data containing
     mapping(uint256 => DataEntry) private _dataEntries;
     uint256 private _dataCount;
+    //Verifier containing
+    mapping(uint256 => mapping(uint8 => VerificationSlot)) private _verificationSlots;
+    mapping(address => VerifierInformation) private _verifierInformation;
 
     //DST INFO
     bool private _initialSupplySettled;
@@ -48,7 +54,8 @@ contract PrivacyFirstContract {
     event VerifierEnrolledEvent(address indexed verifier, string key);
     event VerifierDecryptionKeyReady(address sender, string decryptionKey);
     event DataVerificationRequestedEvent(uint256);
-    event VerifierElected(address indexed verifier, bytes encryptedCid);
+    event VerifierElected(address indexed verifier, uint256 indexed dataId, uint8 slotIndex, bytes encryptedCid);
+    event DataVerified(uint256 indexed dataId, bool result);
 
     // ---------------------------
     // Constructor
@@ -59,6 +66,7 @@ contract PrivacyFirstContract {
         require(config.rewardConfig.dataVerifierPayout > config.rewardConfig.dataVerifierBond,
             "The verifiers payout isn't greater than verifiers bond");
         require(config.originCoordinates.isValid(), "Origin coordinates should be valid");
+        require(config.needs.checksRequired % 2 == 1, "Checks must be odd");
         _owner = payable(msg.sender);
         _ownerPubKey = ownerPubKey;
         _config = config;
@@ -124,7 +132,9 @@ contract PrivacyFirstContract {
             sender: msg.sender,
             encryptedCid: encryptedCid,
             status: DataStatus.PENDING,
-            assignedVerifier: address(0)
+            completedChecks: 0,
+            positiveChecks: 0,
+            assignedChecks: 0
         });
 
         emit DataVerificationRequestedEvent(_dataCount);
@@ -132,11 +142,71 @@ contract PrivacyFirstContract {
     }
 
     function requestAuthToVerify() public virtual {
-        // TODO: IMPLEMENT
+        require(_verifiers[msg.sender], "Only verifiers allowed");
+        require(!_verifierInformation[msg.sender].isVerifying, "Already verifying data");
+
+        uint256 start = 0;
+        if (_verifierInformation[msg.sender].hasVerified) {
+            start = _verifierInformation[msg.sender].lastVerified + _config.needs.verifierCooldown;
+        }
+
+        for (uint256 dataIndex = start; dataIndex < _dataCount; dataIndex++) {
+            if (_dataEntries[dataIndex].status != DataStatus.PENDING) continue;
+
+            (uint8 slotIndex, bool found) = _findAvailableSlot(dataIndex);
+            if (!found) continue;
+
+            _verificationSlots[dataIndex][slotIndex] = VerificationSlot({
+                verifier: msg.sender,
+                result: false,
+                completed: false,
+                deadline: block.timestamp + _config.needs.verificationTimeout
+            });
+
+            if (slotIndex >= _dataEntries[dataIndex].assignedChecks) {
+                _dataEntries[dataIndex].assignedChecks = slotIndex + 1;
+            }
+
+            _verifierInformation[msg.sender].verifyingData = dataIndex;
+            _verifierInformation[msg.sender].isVerifying = true;
+
+            emit VerifierElected(msg.sender, dataIndex, slotIndex, _dataEntries[dataIndex].encryptedCid);
+            return;
+        }
+
+        revert("No data available for verification");
     }
 
-    function submitVerifyResult(bytes memory encryptedCid, bool result) public virtual {
-        // TODO: IMPLEMENT
+    //This function returns the active verification for Verifier.
+    function getActiveVerification() public view returns (uint256) {
+        require(_verifiers[msg.sender], "Only verifiers allowed");
+        require(_verifierInformation[msg.sender].isVerifying, "No active verification");
+        return _verifierInformation[msg.sender].verifyingData;
+    }
+
+    function submitVerifyResult(VerificationResult result) public virtual {
+        require(_verifiers[msg.sender], "Only verifiers allowed");
+        uint256 dataId = getActiveVerification();
+        (uint8 slotIndex, bool slotForVerifierFound) = _getVerifierSlotIndex(dataId, msg.sender);
+        require(slotForVerifierFound, "Invalid slot");
+        require(!_verificationSlots[dataId][slotIndex].completed, "Already completed");
+
+        if (result == VerificationResult.CANNOT_COMPLETE) {
+            _removeVerifierFromData(dataId, slotIndex);
+            _makeVerifierAbleToOperate(msg.sender);
+            return;
+        }
+        //Here the verifier has a valid value for validation
+
+        if (_verificationSlots[dataId][slotIndex].deadline < block.timestamp) { //expired
+            _makeVerifierAbleToOperate(msg.sender);
+            _removeVerifierFromData(dataId, slotIndex);
+            return;
+        }
+
+        //we can register the response
+        _registerVerifierResponse(dataId, slotIndex, (result == VerificationResult.SUCCESS));
+        _determinateVerifiersDecision(dataId);
     }
 
     // ------------------------------------------------
@@ -153,6 +223,65 @@ contract PrivacyFirstContract {
     // ---------------------------
     // Private methods here
     // ---------------------------
+
+    function _findAvailableSlot(uint256 dataId) internal view returns (uint8, bool) {
+        for (uint8 i = 0; i < _dataEntries[dataId].assignedChecks; i++) {
+            VerificationSlot storage slot = _verificationSlots[dataId][i];
+            //Reassign slot if expired.
+            if (!slot.completed && slot.deadline < block.timestamp) {
+                return (i, true);
+            }
+        }
+        // Use next fresh slot if exists and there is no expired slot.
+        if (_dataEntries[dataId].assignedChecks < _config.needs.checksRequired) {
+            return (_dataEntries[dataId].assignedChecks, true);
+        }
+        //No flot avail, return.
+        return (0, false);
+    }
+
+
+    function _getVerifierSlotIndex(uint256 dataId, address verifier) internal view returns (uint8, bool) {
+        uint8 assigned = _dataEntries[dataId].assignedChecks;
+        for (uint8 i = 0; i < assigned; i++)
+            if (_verificationSlots[dataId][i].verifier == verifier)
+                return (i, true);
+        return (0, false);
+    }
+
+
+    function _makeVerifierAbleToOperate(address verifier) internal {
+        _verifierInformation[verifier].verifyingData = 0;
+        _verifierInformation[verifier].isVerifying = false;
+    }
+
+    function _removeVerifierFromData(uint256 dataId, uint8 slotId) internal {
+        _verificationSlots[dataId][slotId].verifier = address(0);
+        _verificationSlots[dataId][slotId].deadline = 0;
+    }
+
+    function _registerVerifierResponse(uint256 dataId, uint8 slotId, bool response) internal {
+        _verificationSlots[dataId][slotId].completed = true;
+        _verificationSlots[dataId][slotId].result = response;
+        _dataEntries[dataId].completedChecks++;
+        if(response){
+            _dataEntries[dataId].positiveChecks = _dataEntries[dataId].positiveChecks + 1;
+        }
+        _verifierInformation[msg.sender].lastVerified = dataId;
+        _verifierInformation[msg.sender].hasVerified = true;
+        _verifierInformation[msg.sender].isVerifying = false;
+    }
+
+    function _determinateVerifiersDecision(uint256 dataId) internal {
+        uint8 majority = (_config.needs.checksRequired / 2) + 1;
+        if (_dataEntries[dataId].positiveChecks >= majority) {
+            _dataEntries[dataId].status = DataStatus.VALID;
+            emit DataVerified(dataId, true);
+        } else if (_dataEntries[dataId].completedChecks - _dataEntries[dataId].positiveChecks >= majority) {
+            _dataEntries[dataId].status = DataStatus.INVALID;
+            emit DataVerified(dataId, false);
+        }
+    }
 
     // ------------------------------------
     // Private methods - REFERS TO PAYMENTS
