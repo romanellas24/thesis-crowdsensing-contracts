@@ -206,7 +206,11 @@ contract PrivacyFirstContract {
 
         //we can register the response
         _registerVerifierResponse(dataId, slotIndex, (result == VerificationResult.SUCCESS));
-        _determinateVerifiersDecision(dataId);
+        if (_dataEntries[dataId].status == DataStatus.PENDING) {
+            //if pending but we can determinate a response, we can also calculate the majority.
+            _determinateVerifiersDecision(dataId);
+        }
+        _tryRewardVerifier(dataId, slotIndex);
     }
 
     // ------------------------------------------------
@@ -264,7 +268,7 @@ contract PrivacyFirstContract {
         _verificationSlots[dataId][slotId].completed = true;
         _verificationSlots[dataId][slotId].result = response;
         _dataEntries[dataId].completedChecks++;
-        if(response){
+        if (response) {
             _dataEntries[dataId].positiveChecks = _dataEntries[dataId].positiveChecks + 1;
         }
         _verifierInformation[msg.sender].lastVerified = dataId;
@@ -274,11 +278,15 @@ contract PrivacyFirstContract {
 
     function _determinateVerifiersDecision(uint256 dataId) internal {
         uint8 majority = (_config.needs.checksRequired / 2) + 1;
+
         if (_dataEntries[dataId].positiveChecks >= majority) {
             _dataEntries[dataId].status = DataStatus.VALID;
+            _rewardSender(dataId);
+            _rewardCorrectVerifiers(dataId, true);
             emit DataVerified(dataId, true);
         } else if (_dataEntries[dataId].completedChecks - _dataEntries[dataId].positiveChecks >= majority) {
             _dataEntries[dataId].status = DataStatus.INVALID;
+            _rewardCorrectVerifiers(dataId, false);
             emit DataVerified(dataId, false);
         }
     }
@@ -318,6 +326,43 @@ contract PrivacyFirstContract {
 
     function _computeDstPerDatum(Config calldata config) pure internal returns (uint256)  {
         return config.rewardConfig.dataSenderPayout + (config.needs.checksRequired * config.rewardConfig.dataVerifierPayout);
+    }
+
+    function _rewardSender(uint256 dataId) internal {
+        address sender = _dataEntries[dataId].sender;
+        require(_remainingSupply >= _config.rewardConfig.dataSenderPayout, "Insufficient supply");
+        _dstContract.transfer(sender, _config.rewardConfig.dataSenderPayout);
+        _remainingSupply = _remainingSupply - _config.rewardConfig.dataSenderPayout;
+    }
+
+    //Reward verifiers on majority determination
+    function _rewardCorrectVerifiers(uint256 dataId, bool dataWasValid) internal {
+        uint8 assigned = _dataEntries[dataId].assignedChecks;
+        for (uint8 i = 0; i < assigned; i++) {
+            VerificationSlot storage slot = _verificationSlots[dataId][i];
+            if (!slot.completed) continue;
+            if (slot.result == dataWasValid) {
+                require(_remainingSupply >= _config.rewardConfig.dataVerifierPayout, "Insufficient supply");
+                _dstContract.transfer(slot.verifier, _config.rewardConfig.dataVerifierPayout);
+                _remainingSupply = _remainingSupply - _config.rewardConfig.dataVerifierPayout;
+            }
+        }
+    }
+
+    //Reward verifiers on next submissions
+    function _tryRewardVerifier(uint256 dataId, uint8 slotIndex) internal {
+        DataStatus status = _dataEntries[dataId].status;
+        if (status == DataStatus.PENDING) return;
+
+        VerificationSlot storage slot = _verificationSlots[dataId][slotIndex];
+        bool votedCorrectly = (status == DataStatus.VALID && slot.result)
+            || (status == DataStatus.INVALID && !slot.result);
+
+        if (votedCorrectly) {
+            require(_remainingSupply >= _config.rewardConfig.dataVerifierPayout, "Insufficient supply");
+            _dstContract.transfer(slot.verifier, _config.rewardConfig.dataVerifierPayout);
+            _remainingSupply -= _config.rewardConfig.dataVerifierPayout;
+        }
     }
 
 
