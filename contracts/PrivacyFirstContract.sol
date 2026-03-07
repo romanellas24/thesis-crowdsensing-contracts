@@ -37,6 +37,12 @@ contract PrivacyFirstContract {
     mapping(uint256 => mapping(uint8 => VerificationSlot)) private _verificationSlots;
     mapping(address => VerifierInformation) private _verifierInformation;
 
+    //Campaign lifecycle
+    bool private _campaignOpen;
+    uint256 private _validDataCount;
+    uint256 private _uniqueValidSenders;
+    mapping(address => bool) private _senderHasValidData;
+
     //DST INFO
     bool private _initialSupplySettled;
     uint private _remainingSupply;
@@ -56,6 +62,7 @@ contract PrivacyFirstContract {
     event DataVerificationRequestedEvent(uint256);
     event VerifierElected(address indexed verifier, uint256 indexed dataId, uint8 slotIndex, bytes encryptedCid);
     event DataVerified(uint256 indexed dataId, bool result);
+    event CampaignClosed();
 
     // ---------------------------
     // Constructor
@@ -79,6 +86,9 @@ contract PrivacyFirstContract {
         _verifierSupplyBond = 0;
         _allocatedSupply = 0;
         _smartContractOrigin = config.originCoordinates.packCoordinates();
+        _campaignOpen = true;
+        _validDataCount = 0;
+        _uniqueValidSenders = 0;
     }
 
     // ---------------------------
@@ -90,24 +100,28 @@ contract PrivacyFirstContract {
     }
 
     function publishEncryptedSenderPublicKey(string calldata encryptedPubKey) public virtual {
+        require(_campaignOpen, "Campaign is closed");
         require(!_senderEnrolledRequest[msg.sender], "Sender has already requested to join");
         _senderEnrolledRequest[msg.sender] = true;
         emit SenderEnrolledEvent(msg.sender, encryptedPubKey);
     }
 
     function publishSenderEncryptionKey(address sender, string calldata encryptionKey) public virtual {
+        require(_campaignOpen, "Campaign is closed");
         require(msg.sender == _owner, "Not the owner");
         _senders[sender] = true;
         emit SenderEncryptionKeyReady(sender, encryptionKey);
     }
 
     function publishEncryptedVerifierPublicKey(string calldata encryptedPubKey) public virtual {
+        require(_campaignOpen, "Campaign is closed");
         require(!_verifierEnrolledRequest[msg.sender], "Verifier has already requested to join");
         _verifierEnrolledRequest[msg.sender] = true;
         emit VerifierEnrolledEvent(msg.sender, encryptedPubKey);
     }
 
     function publishVerifierDecryptionKey(address verifier, string calldata decryptionKey) public virtual {
+        require(_campaignOpen, "Campaign is closed");
         require(msg.sender == _owner, "Not the owner");
         _verifiers[verifier] = true;
         emit VerifierDecryptionKeyReady(verifier, decryptionKey);
@@ -125,9 +139,9 @@ contract PrivacyFirstContract {
         // TODO: IMPLEMENT
     }
 
-    function publishIpfsCid(bytes memory encryptedCid) public virtual {
+    function publishIpfsCid(bytes memory encryptedCid) external virtual {
+        require(_campaignOpen, "Campaign is closed");
         require(_senders[msg.sender], "Only senders allowed to send data.");
-
         _dataEntries[_dataCount] = DataEntry({
             sender: msg.sender,
             encryptedCid: encryptedCid,
@@ -141,7 +155,8 @@ contract PrivacyFirstContract {
         _dataCount++;
     }
 
-    function requestAuthToVerify() public virtual {
+    function requestAuthToVerify() external virtual {
+        require(_campaignOpen, "Campaign is closed");
         require(_verifiers[msg.sender], "Only verifiers allowed");
         require(!_verifierInformation[msg.sender].isVerifying, "Already verifying data");
 
@@ -184,7 +199,7 @@ contract PrivacyFirstContract {
         return _verifierInformation[msg.sender].verifyingData;
     }
 
-    function submitVerifyResult(VerificationResult result) public virtual {
+    function submitVerifyResult(VerificationResult result) external virtual {
         require(_verifiers[msg.sender], "Only verifiers allowed");
         uint256 dataId = getActiveVerification();
         (uint8 slotIndex, bool slotForVerifierFound) = _getVerifierSlotIndex(dataId, msg.sender);
@@ -218,10 +233,19 @@ contract PrivacyFirstContract {
     // ------------------------------------------------
 
     function payInitialSupply() external {
+        require(_campaignOpen, "Campaign is closed");
         require(_owner == msg.sender, "Initial supply can be settled only by owner");
         _dstContract.transferFrom(msg.sender, address(this), _config.rewardConfig.totalDst);
         _remainingSupply = _config.rewardConfig.totalDst;
         _initialSupplySettled = true;
+    }
+
+    // Campaign public methods
+    function closeCampaign() external {
+        require(msg.sender == _owner, "Only owner");
+        require(_campaignOpen, "Campaign already closed");
+        _campaignOpen = false;
+        emit CampaignClosed();
     }
 
     // ---------------------------
@@ -281,9 +305,18 @@ contract PrivacyFirstContract {
 
         if (_dataEntries[dataId].positiveChecks >= majority) {
             _dataEntries[dataId].status = DataStatus.VALID;
+            _validDataCount++;
+
+            if (!_senderHasValidData[_dataEntries[dataId].sender]) {
+                _senderHasValidData[_dataEntries[dataId].sender] = true;
+                _uniqueValidSenders++;
+            }
+
             _rewardSender(dataId);
             _rewardCorrectVerifiers(dataId, true);
             emit DataVerified(dataId, true);
+
+            _checkCampaignCompletion();
         } else if (_dataEntries[dataId].completedChecks - _dataEntries[dataId].positiveChecks >= majority) {
             _dataEntries[dataId].status = DataStatus.INVALID;
             _rewardCorrectVerifiers(dataId, false);
@@ -365,5 +398,13 @@ contract PrivacyFirstContract {
         }
     }
 
+    //Campaign private methods
+    function _checkCampaignCompletion() internal {
+        if (_validDataCount >= _config.needs.dataNeeded
+            && _uniqueValidSenders >= _config.needs.minimumParticipants) {
+            _campaignOpen = false;
+            emit CampaignClosed();
+        }
+    }
 
 }

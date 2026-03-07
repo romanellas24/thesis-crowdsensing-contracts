@@ -7,4 +7,5 @@ struct SmartContractNeeds {
     uint8 checksRequired;
     uint verifierCooldown;
     uint verificationTimeout;
+    uint minimumParticipants;
 }
