@@ -194,14 +194,12 @@ contract PrivacyFirstContract {
 
     //This function returns the active verification for Verifier.
     function getActiveVerification() public view returns (uint256) {
-        require(_campaignOpen, "Campaign is closed");
         require(_verifiers[msg.sender], "Only verifiers allowed");
         require(_verifierInformation[msg.sender].isVerifying, "No active verification");
         return _verifierInformation[msg.sender].verifyingData;
     }
 
     function submitVerifyResult(VerificationResult result) external virtual {
-        require(_campaignOpen, "Campaign is closed");
         require(_verifiers[msg.sender], "Only verifiers allowed");
         uint256 dataId = getActiveVerification();
         (uint8 slotIndex, bool slotForVerifierFound) = _getVerifierSlotIndex(dataId, msg.sender);

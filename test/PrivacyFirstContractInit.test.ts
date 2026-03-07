@@ -22,7 +22,8 @@ let contractConfiguration = {
         dataNeeded: 3,
         checksRequired: 7,
         verifierCooldown: 2,
-        verificationTimeout: 300
+        verificationTimeout: 300,
+        minimumParticipants: 1
     },
     chunkConfig: {
         chunkSize: 1000000,
