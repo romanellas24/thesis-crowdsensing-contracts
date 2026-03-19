@@ -51,6 +51,7 @@ contract PrivacyFirstContract {
     uint private _verifierSupplyBond;
     //Chunking
     PackedPosition private _smartContractOrigin;
+    PackedPosition private _smartContractEnd;
 
     // ---------------------------
     // Events
@@ -74,6 +75,9 @@ contract PrivacyFirstContract {
             "The verifiers payout isn't greater than verifiers bond");
         require(config.originCoordinates.isValid(), "Origin coordinates should be valid");
         require(config.needs.checksRequired % 2 == 1, "Checks must be odd");
+        require(config.chunkConfig.chunk4Side > 0, "chunk4Side must be greater than 0");
+        require(config.chunkConfig.chunkSize > 0, "chunkSize must be greater than 0");
+
         _owner = payable(msg.sender);
         _ownerPubKey = ownerPubKey;
         _config = config;
@@ -85,8 +89,19 @@ contract PrivacyFirstContract {
         _senderSupplyBond = 0;
         _verifierSupplyBond = 0;
         _allocatedSupply = 0;
+
+
+        //Campaign Coordinates
         _smartContractOrigin = config.originCoordinates.packCoordinates();
+        int32 totalArea = int32(uint32(config.chunkConfig.chunkSize * config.chunkConfig.chunk4Side));
+        _smartContractEnd = PackedPosition({
+            latE7: _smartContractOrigin.latE7 + totalArea,
+            lonE7: _smartContractOrigin.lonE7 + totalArea
+        });
+
+        //Campaign Opening
         _campaignOpen = true;
+        //Data
         _validDataCount = 0;
         _uniqueValidSenders = 0;
     }
@@ -139,16 +154,23 @@ contract PrivacyFirstContract {
         // TODO: IMPLEMENT
     }
 
-    function publishIpfsCid(bytes memory encryptedCid) external virtual {
+    function publishIpfsCid(bytes memory encryptedCid, GlobalPosition calldata position) external virtual {
         require(_campaignOpen, "Campaign is closed");
         require(_senders[msg.sender], "Only senders allowed to send data.");
+        require(position.isValid(), "Invalid Coordinates");
+
+        PackedPosition memory packed = position.packCoordinates();
+        (uint16 chunkIndex, bool inside) = _getChunkIndex(packed);
+        require(inside, "Outside campaign area");
+
         _dataEntries[_dataCount] = DataEntry({
             sender: msg.sender,
             encryptedCid: encryptedCid,
             status: DataStatus.PENDING,
             completedChecks: 0,
             positiveChecks: 0,
-            assignedChecks: 0
+            assignedChecks: 0,
+            chunkIndex: chunkIndex
         });
 
         emit DataVerificationRequestedEvent(_dataCount);
@@ -322,6 +344,20 @@ contract PrivacyFirstContract {
             _rewardCorrectVerifiers(dataId, false);
             emit DataVerified(dataId, false);
         }
+    }
+
+    function _getChunkIndex(PackedPosition memory packed) internal view returns (uint16, bool) {
+        // Check bounds
+        if (packed.latE7 < _smartContractOrigin.latE7 || packed.latE7 >= _smartContractEnd.latE7) return (0, false);
+        if (packed.lonE7 < _smartContractOrigin.lonE7 || packed.lonE7 >= _smartContractEnd.lonE7) return (0, false);
+
+        // Calculating row and col
+        int32 chunkSize = int32(uint32(_config.chunkConfig.chunkSize));
+        uint16 row = uint16(uint32((packed.latE7 - _smartContractOrigin.latE7) / chunkSize));
+        uint16 col = uint16(uint32((packed.lonE7 - _smartContractOrigin.lonE7) / chunkSize));
+
+        uint16 index = row * _config.chunkConfig.chunk4Side + col;
+        return (index, true);
     }
 
     // ------------------------------------

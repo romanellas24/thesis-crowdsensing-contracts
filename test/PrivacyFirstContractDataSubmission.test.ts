@@ -3,66 +3,9 @@ import {
 } from "@nomicfoundation/hardhat-toolbox/network-helpers";
 import {expect} from "chai";
 import {ethers} from "hardhat";
-import type {HardhatEthersSigner} from "@nomicfoundation/hardhat-ethers/signers";
-import cipher from "../testUtils/cipher";
 import utils from "../testUtils/utils";
-
+import {contractDeployment, sender1, verifier1, verifier2, verifier3, verifier4, owner, ownerKeys, validPosition, interestedUser} from "../testUtils/constants";
 require('dotenv').config();
-
-const MAX_DST = 1000000;
-
-let owner: HardhatEthersSigner, interestedUser: HardhatEthersSigner,
-    sender1: HardhatEthersSigner, sender2: HardhatEthersSigner, sender3: HardhatEthersSigner,
-    verifier1: HardhatEthersSigner, verifier2: HardhatEthersSigner, verifier3: HardhatEthersSigner, verifier4: HardhatEthersSigner;
-const ownerKeys = cipher.generateKeyPair();
-
-let contractConfiguration = {
-    needs: {
-        freshnessPeriod: 3600,
-        dataNeeded: 3,
-        checksRequired: 7,
-        verifierCooldown: 2,
-        verificationTimeout: 300,
-        minimumParticipants: 1
-    },
-    chunkConfig: {
-        chunkSize: 1000000,
-        chunk4Side: 5
-    },
-    rewardConfig: {
-        totalDst: MAX_DST,
-        dataSenderBond: 1,
-        dataVerifierBond: 1,
-        dataSenderPayout: 100,
-        dataVerifierPayout: 30
-    },
-    originCoordinates: {
-        latitudeInteger: 41,
-        latitudeDecimal: 1000000,
-        longitudeInteger: 11,
-        longitudeDecimal: 1000000,
-    }
-}
-
-async function contractDeployment() {
-    [owner, sender1, sender2, sender3, verifier1, verifier2, verifier3, verifier4, interestedUser] = await ethers.getSigners();
-    const PrivacyFirstContract = await ethers.getContractFactory("PrivacyFirstContract");
-    const DataSentTokenContract = await ethers.getContractFactory("DataSentTokenContract");
-    const dataSentToken = await DataSentTokenContract.deploy(999999999);
-    const privacyContract = await PrivacyFirstContract.deploy(
-        ownerKeys.publicKey,
-        contractConfiguration,
-        await dataSentToken.getAddress()
-    );
-
-    await dataSentToken.connect(owner).approve(
-        await privacyContract.getAddress(),
-        contractConfiguration.rewardConfig.totalDst
-    );
-
-    await privacyContract.connect(owner).payInitialSupply();
-    return {privacyContract, dataSentToken}
-}
 
 describe("[DATA SUBMISSION] PrivacyFirstContract", function () {
 
@@ -75,17 +18,17 @@ describe("[DATA SUBMISSION] PrivacyFirstContract", function () {
         const cid3 = ethers.toUtf8Bytes("QmEncryptedCid_3");
 
         await expect(
-            privacyContract.connect(sender1).publishIpfsCid(cid1)
+            privacyContract.connect(sender1).publishIpfsCid(cid1, validPosition)
         ).to.emit(privacyContract, "DataVerificationRequestedEvent")
             .withArgs(0);
 
         await expect(
-            privacyContract.connect(sender1).publishIpfsCid(cid2)
+            privacyContract.connect(sender1).publishIpfsCid(cid2, validPosition)
         ).to.emit(privacyContract, "DataVerificationRequestedEvent")
             .withArgs(1);
 
         await expect(
-            privacyContract.connect(sender1).publishIpfsCid(cid3)
+            privacyContract.connect(sender1).publishIpfsCid(cid3, validPosition)
         ).to.emit(privacyContract, "DataVerificationRequestedEvent")
             .withArgs(2);
     });
@@ -100,7 +43,7 @@ describe("[DATA SUBMISSION] PrivacyFirstContract", function () {
         await utils.setupVerifierPrivacy(verifier4, privacyContract);
 
         const cid = ethers.toUtf8Bytes("QmEncryptedCid_1");
-        await privacyContract.connect(sender1).publishIpfsCid(cid);
+        await privacyContract.connect(sender1).publishIpfsCid(cid, validPosition);
 
         return {privacyContract};
     }
@@ -174,7 +117,7 @@ describe("[DATA SUBMISSION] PrivacyFirstContract", function () {
 
         // verifier1 has cooldown=1, so submit more data first for cooldown
         const cid2 = ethers.toUtf8Bytes("QmEncryptedCid_2");
-        await privacyContract.connect(sender1).publishIpfsCid(cid2);
+        await privacyContract.connect(sender1).publishIpfsCid(cid2, validPosition);
 
         await privacyContract.connect(verifier4).requestAuthToVerify();
         await expect(
@@ -204,7 +147,7 @@ describe("[DATA SUBMISSION] PrivacyFirstContract", function () {
         await privacyContract.connect(verifier1).submitVerifyResult(0); // SUCCESS
 
         const cid2 = ethers.toUtf8Bytes("QmEncryptedCid_2");
-        await privacyContract.connect(sender1).publishIpfsCid(cid2);
+        await privacyContract.connect(sender1).publishIpfsCid(cid2, validPosition);
 
         await privacyContract.connect(verifier2).requestAuthToVerify();
         await expect(

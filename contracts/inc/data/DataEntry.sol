@@ -9,4 +9,5 @@ import "./DataEnum.sol";
         uint8 completedChecks;
         uint8 positiveChecks;
         uint8 assignedChecks;
+        uint16 chunkIndex;
     }
