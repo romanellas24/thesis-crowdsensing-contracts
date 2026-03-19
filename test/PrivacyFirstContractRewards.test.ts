@@ -3,66 +3,11 @@ import {
 } from "@nomicfoundation/hardhat-toolbox/network-helpers";
 import {expect} from "chai";
 import {ethers} from "hardhat";
-import type {HardhatEthersSigner} from "@nomicfoundation/hardhat-ethers/signers";
-import cipher from "../testUtils/cipher";
 import utils from "../testUtils/utils";
 
 require('dotenv').config();
 
-const MAX_DST = 1000000;
-
-let owner: HardhatEthersSigner, interestedUser: HardhatEthersSigner,
-    sender1: HardhatEthersSigner, sender2: HardhatEthersSigner, sender3: HardhatEthersSigner,
-    verifier1: HardhatEthersSigner, verifier2: HardhatEthersSigner, verifier3: HardhatEthersSigner, verifier4: HardhatEthersSigner;
-const ownerKeys = cipher.generateKeyPair();
-
-let contractConfiguration = {
-    needs: {
-        freshnessPeriod: 3600,
-        dataNeeded: 3,
-        checksRequired: 7,
-        verifierCooldown: 2,
-        verificationTimeout: 300,
-        minimumParticipants: 1
-    },
-    chunkConfig: {
-        chunkSize: 1000000,
-        chunk4Side: 5
-    },
-    rewardConfig: {
-        totalDst: MAX_DST,
-        dataSenderBond: 1,
-        dataVerifierBond: 1,
-        dataSenderPayout: 100,
-        dataVerifierPayout: 30
-    },
-    originCoordinates: {
-        latitudeInteger: 41,
-        latitudeDecimal: 1000000,
-        longitudeInteger: 11,
-        longitudeDecimal: 1000000,
-    }
-}
-
-async function contractDeployment() {
-    [owner, sender1, sender2, sender3, verifier1, verifier2, verifier3, verifier4, interestedUser] = await ethers.getSigners();
-    const PrivacyFirstContract = await ethers.getContractFactory("PrivacyFirstContract");
-    const DataSentTokenContract = await ethers.getContractFactory("DataSentTokenContract");
-    const dataSentToken = await DataSentTokenContract.deploy(999999999);
-    const privacyContract = await PrivacyFirstContract.deploy(
-        ownerKeys.publicKey,
-        contractConfiguration,
-        await dataSentToken.getAddress()
-    );
-
-    await dataSentToken.connect(owner).approve(
-        await privacyContract.getAddress(),
-        contractConfiguration.rewardConfig.totalDst
-    );
-
-    await privacyContract.connect(owner).payInitialSupply();
-    return {privacyContract, dataSentToken}
-}
+import {contractDeployment, sender1, verifier1, verifier2, verifier3, verifier4, owner, ownerKeys, validPosition, contractConfiguration} from "../testUtils/constants";
 
 describe("[REWARDS] PrivacyFirstContract", function () {
 
@@ -83,7 +28,7 @@ describe("[REWARDS] PrivacyFirstContract", function () {
         await utils.setupVerifierPrivacy(verifier4, privacyContract);
 
         const cid = ethers.toUtf8Bytes("QmEncryptedCid_1");
-        await privacyContract.connect(sender1).publishIpfsCid(cid);
+        await privacyContract.connect(sender1).publishIpfsCid(cid, validPosition);
 
         return {privacyContract, dataSentToken};
     }
@@ -163,15 +108,15 @@ describe("[REWARDS] PrivacyFirstContract", function () {
     });
 
     it("[REWARD]: Late verifier gets payout if voted correctly", async function () {
-        const {privacyContract, dataSentToken} = await loadFixture(readyForRewards);
+        const {privacyContract} = await loadFixture(readyForRewards);
 
         // Submit more data so cooldown allows verifier1 to come back
         const cid2 = ethers.toUtf8Bytes("QmEncryptedCid_2");
         const cid3 = ethers.toUtf8Bytes("QmEncryptedCid_3");
         const cid4 = ethers.toUtf8Bytes("QmEncryptedCid_4");
-        await privacyContract.connect(sender1).publishIpfsCid(cid2);
-        await privacyContract.connect(sender1).publishIpfsCid(cid3);
-        await privacyContract.connect(sender1).publishIpfsCid(cid4);
+        await privacyContract.connect(sender1).publishIpfsCid(cid2, validPosition);
+        await privacyContract.connect(sender1).publishIpfsCid(cid3, validPosition);
+        await privacyContract.connect(sender1).publishIpfsCid(cid4, validPosition);
 
         await privacyContract.connect(verifier1).requestAuthToVerify();
         await privacyContract.connect(verifier1).submitVerifyResult(0); // SUCCESS

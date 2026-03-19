@@ -2,60 +2,12 @@ import {
     loadFixture,
 } from "@nomicfoundation/hardhat-toolbox/network-helpers";
 import {expect} from "chai";
-import {ethers} from "hardhat";
-import type {HardhatEthersSigner} from "@nomicfoundation/hardhat-ethers/signers";
 import cipher from "../testUtils/cipher";
 import utils from "../testUtils/utils";
 
 require('dotenv').config();
 
-const MAX_DST = 1000000;
-
-let owner: HardhatEthersSigner, interestedUser: HardhatEthersSigner,
-    sender1: HardhatEthersSigner, sender2: HardhatEthersSigner, sender3: HardhatEthersSigner,
-    verifier1: HardhatEthersSigner, verifier2: HardhatEthersSigner, verifier3: HardhatEthersSigner, verifier4: HardhatEthersSigner;
-const ownerKeys = cipher.generateKeyPair();
-
-let contractConfiguration = {
-    needs: {
-        freshnessPeriod: 3600,
-        dataNeeded: 3,
-        checksRequired: 7,
-        verifierCooldown: 2,
-        verificationTimeout: 300,
-        minimumParticipants: 1
-    },
-    chunkConfig: {
-        chunkSize: 1000000,
-        chunk4Side: 5
-    },
-    rewardConfig: {
-        totalDst: MAX_DST,
-        dataSenderBond: 1,
-        dataVerifierBond: 1,
-        dataSenderPayout: 100,
-        dataVerifierPayout: 30
-    },
-    originCoordinates: {
-        latitudeInteger: 41,
-        latitudeDecimal: 1000000,
-        longitudeInteger: 11,
-        longitudeDecimal: 1000000,
-    }
-}
-
-async function contractDeployment() {
-    [owner, sender1, sender2, sender3, verifier1, verifier2, verifier3, verifier4, interestedUser] = await ethers.getSigners();
-    const PrivacyFirstContract = await ethers.getContractFactory("PrivacyFirstContract");
-    const DataSentTokenContract = await ethers.getContractFactory("DataSentTokenContract");
-    const dataSentToken = await DataSentTokenContract.deploy(999999999);
-    const privacyContract = await PrivacyFirstContract.deploy(
-        ownerKeys.publicKey,
-        contractConfiguration,
-        await dataSentToken.getAddress()
-    );
-    return {privacyContract}
-}
+import {contractDeployment, sender1, sender2, sender3, verifier1, owner, ownerKeys} from "../testUtils/constants";
 
 describe("[INIT PHASE - SENDER] PrivacyFirstContract", function () {
 
@@ -103,7 +55,7 @@ describe("[INIT PHASE - SENDER] PrivacyFirstContract", function () {
         const {privacyContract} = await loadFixture(contractDeployment);
         const waitForEvent = new Promise<{ sender: string; key: string }>((resolve, reject) => {
             // @ts-ignore
-            privacyContract.once("SenderEnrolledEvent", (sender: string, key: string, event: any) => {
+            privacyContract.once("SenderEnrolledEvent", (sender: string, key: string) => {
                 try {
                     resolve({sender, key});
                 } catch (err) {
@@ -127,7 +79,7 @@ describe("[INIT PHASE - SENDER] PrivacyFirstContract", function () {
         const {privacyContract} = await loadFixture(contractDeployment);
         const waitForEvent = new Promise<{ sender: string; key: string }>((resolve, reject) => {
             // @ts-ignore
-            privacyContract.connect(owner).once("SenderEnrolledEvent", (sender: string, key: string, event: any) => {
+            privacyContract.connect(owner).once("SenderEnrolledEvent", (sender: string, key: string) => {
                 try {
                     resolve({sender, key});
                 } catch (err) {
@@ -150,7 +102,7 @@ describe("[INIT PHASE - SENDER] PrivacyFirstContract", function () {
         privacyContract.connect(owner).publishSenderEncryptionKey(result.sender, encryptionKeyHidden);
         const waitForEncryptionKey = new Promise<{ sender: string; encryptionKey: string }>((resolve, reject) => {
             // @ts-ignore
-            privacyContract.connect(sender1).once("SenderEncryptionKeyReady", (sender: string, encryptionKey: string, event: any) => {
+            privacyContract.connect(sender1).once("SenderEncryptionKeyReady", (sender: string, encryptionKey: string) => {
                 try {
                     resolve({sender, encryptionKey});
                 } catch (err) {
@@ -163,10 +115,10 @@ describe("[INIT PHASE - SENDER] PrivacyFirstContract", function () {
     });
 
     it("[SENDER]: Decrypt encryptionKey sent by owner in confidential way", async function () {
-        const {privacyContract} = await loadFixture(contractDeployment);
+        const {privacyContract} = await contractDeployment();
         const waitForEvent = new Promise<{ sender: string; key: string }>((resolve, reject) => {
             // @ts-ignore
-            privacyContract.connect(owner).once("SenderEnrolledEvent", (sender: string, key: string, event: any) => {
+            privacyContract.connect(owner).once("SenderEnrolledEvent", (sender: string, key: string) => {
                 try {
                     resolve({sender, key});
                 } catch (err) {
@@ -176,7 +128,7 @@ describe("[INIT PHASE - SENDER] PrivacyFirstContract", function () {
         });
         const waitForEncryptionKey = new Promise<{ sender: string; encryptionKey: string }>((resolve, reject) => {
             // @ts-ignore
-            privacyContract.connect(sender1).once("SenderEncryptionKeyReady", (sender: string, encryptionKey: string, event: any) => {
+            privacyContract.connect(sender1).once("SenderEncryptionKeyReady", (sender: string, encryptionKey: string) => {
                 try {
                     resolve({sender, encryptionKey});
                 } catch (err) {
@@ -253,7 +205,7 @@ describe("[INIT PHASE - VERIFIER] PrivacyFirstContract", function () {
         const {privacyContract} = await loadFixture(contractDeployment);
         const waitForVerifier = new Promise<{ verifier: string; key: string }>((resolve, reject) => {
             // @ts-ignore
-            privacyContract.connect(owner).once("VerifierEnrolledEvent", (verifier: string, key: string, event: any) => {
+            privacyContract.connect(owner).once("VerifierEnrolledEvent", (verifier: string, key: string) => {
                 try {
                     resolve({verifier, key});
                 } catch (err) {
@@ -278,7 +230,7 @@ describe("[INIT PHASE - VERIFIER] PrivacyFirstContract", function () {
         const {privacyContract} = await loadFixture(contractDeployment);
         const waitForVerifier = new Promise<{ verifier: string; key: string }>((resolve, reject) => {
             // @ts-ignore
-            privacyContract.connect(owner).once("VerifierEnrolledEvent", (verifier: string, key: string, event: any) => {
+            privacyContract.connect(owner).once("VerifierEnrolledEvent", (verifier: string, key: string) => {
                 try {
                     resolve({verifier, key});
                 } catch (err) {
@@ -306,7 +258,7 @@ describe("[INIT PHASE - VERIFIER] PrivacyFirstContract", function () {
         const {privacyContract} = await contractDeployment();
         const waitForVerifier = new Promise<{ verifier: string; key: string }>((resolve, reject) => {
             // @ts-ignore
-            privacyContract.connect(owner).once("VerifierEnrolledEvent", (verifier: string, key: string, event: any) => {
+            privacyContract.connect(owner).once("VerifierEnrolledEvent", (verifier: string, key: string) => {
                 try {
                     resolve({verifier, key});
                 } catch (err) {
@@ -316,7 +268,7 @@ describe("[INIT PHASE - VERIFIER] PrivacyFirstContract", function () {
         });
         const waitForEncryptionKey = new Promise<{ verifier: string; key: string }>((resolve, reject) => {
             // @ts-ignore
-            privacyContract.connect(verifier1).once("VerifierDecryptionKeyReady", (verifier: string, key: string, event: any) => {
+            privacyContract.connect(verifier1).once("VerifierDecryptionKeyReady", (verifier: string, key: string) => {
                 if (verifier !== verifier1.address)
                     return;
                 try {
