@@ -36,8 +36,8 @@ contract PrivacyFirstContract {
     uint256 private _dataCount;
     //Verifier containing
     mapping(uint256 => mapping(uint8 => VerificationSlot)) private _verificationSlots;
-    mapping(address => VerifierInformation) private _verifierInformation;
     mapping(address => SenderInformation) private _senderInformation;
+    mapping(address => VerifierInformation) private _verifierInformation;
 
     //Campaign lifecycle
     bool private _campaignOpen;
@@ -95,7 +95,6 @@ contract PrivacyFirstContract {
         _verifierSupplyBond = 0;
         _allocatedSupply = 0;
 
-
         //Campaign Coordinates
         _smartContractOrigin = config.originCoordinates.packCoordinates();
         int32 totalArea = int32(uint32(config.chunkConfig.chunkSize * config.chunkConfig.chunk4Side));
@@ -133,6 +132,12 @@ contract PrivacyFirstContract {
         require(_campaignOpen, "Campaign is closed");
         require(msg.sender == _owner, "Not the owner");
         _senders[sender] = true;
+        _senderInformation[sender] = SenderInformation({
+            bondBalance: 0,
+            dataSubmitted: 0,
+            validData: 0,
+            invalidData: 0
+        });
         emit SenderEncryptionKeyReady(sender, encryptionKey);
     }
 
@@ -147,6 +152,14 @@ contract PrivacyFirstContract {
         require(_campaignOpen, "Campaign is closed");
         require(msg.sender == _owner, "Not the owner");
         _verifiers[verifier] = true;
+        _verifierInformation[verifier] = VerifierInformation({
+            lastVerified: 0,
+            hasVerified: false,
+            verifyingData: 0,
+            isVerifying: false,
+            bondBalance: 0,
+            verificationsSinceBondRefund: 0
+        });
         emit VerifierDecryptionKeyReady(verifier, decryptionKey);
     }
 
@@ -166,6 +179,7 @@ contract PrivacyFirstContract {
         require(_campaignOpen, "Campaign is closed");
         require(_senders[msg.sender], "Only senders allowed to send data.");
         require(position.isValid(), "Invalid Coordinates");
+        require(_senderInformation[msg.sender].bondBalance >= _config.rewardConfig.dataSenderBondPerData, "Insufficient DST balance in bond, please refund");
 
         PackedPosition memory packed = position.packCoordinates();
         (uint16 chunkIndex, bool inside) = _getChunkIndex(packed);
@@ -183,12 +197,14 @@ contract PrivacyFirstContract {
 
         emit DataVerificationRequestedEvent(_dataCount);
         _dataCount++;
+        _senderInformation[msg.sender].bondBalance = _senderInformation[msg.sender].bondBalance - _config.rewardConfig.dataSenderBondPerData;
     }
 
     function requestAuthToVerify() external virtual {
         require(_campaignOpen, "Campaign is closed");
         require(_verifiers[msg.sender], "Only verifiers allowed");
         require(!_verifierInformation[msg.sender].isVerifying, "Already verifying data");
+        require(_verifierInformation[msg.sender].bondBalance >= _config.rewardConfig.dataVerifierBondPerData, "Insufficient DST balance in bond, please refund");
 
         uint256 start = 0;
         if (_verifierInformation[msg.sender].hasVerified) {
@@ -256,6 +272,7 @@ contract PrivacyFirstContract {
             _determinateVerifiersDecision(dataId);
         }
         _tryRewardVerifier(dataId, slotIndex);
+        _verifierInformation[msg.sender].bondBalance = _verifierInformation[msg.sender].bondBalance - _config.rewardConfig.dataVerifierBondPerData;
     }
 
     function payInitialSupply() external {
@@ -270,14 +287,14 @@ contract PrivacyFirstContract {
         require(_senders[msg.sender], "Not a sender");
         _dstContract.transferFrom(msg.sender, address(this), _requiredSenderBond);
         _senderSupplyBond = _senderSupplyBond + _requiredSenderBond;
-        //We have paid, so we can update the sender state.
-        //TODO: CONTINUARE TUTTA L'IMPLEMENTAZIONE.
+        _senderInformation[msg.sender].bondBalance = _senderInformation[msg.sender].bondBalance + _requiredSenderBond;
     }
 
     function verifierPayBond() external {
         require(_verifiers[msg.sender], "Not a verifier");
         _dstContract.transferFrom(msg.sender, address(this), _requiredVerifierBond);
         _verifierSupplyBond = _verifierSupplyBond + _requiredVerifierBond;
+        _verifierInformation[msg.sender].bondBalance = _verifierInformation[msg.sender].bondBalance + _requiredVerifierBond;
     }
 
     // Campaign public methods

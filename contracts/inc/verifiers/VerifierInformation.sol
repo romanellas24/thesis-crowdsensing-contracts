@@ -7,5 +7,5 @@ pragma solidity ^0.8.24;
         uint256 verifyingData;
         bool isVerifying;
         uint256 bondBalance;
-        uint8 verificationsSinceBond;
+        uint8 verificationsSinceBondRefund;
     }
