@@ -14,9 +14,7 @@ export default {
         const signature = await user.signMessage(messageHashBytes);
 
         // ricavo della chiave pubblica
-        const pubKey = ethers.SigningKey.recoverPublicKey(messageHashBytes, signature);
-
-        return pubKey;
+        return ethers.SigningKey.recoverPublicKey(messageHashBytes, signature);
     },
 
     setupOwnerPrivacy: async (owner: HardhatEthersSigner, contract: PrivacyFirstContract, ownerKeys: { publicKey: string, privateKey: string }) => {

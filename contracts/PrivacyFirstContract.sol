@@ -5,6 +5,7 @@ import "./inc/chunks/GlobalPosition.sol";
 import "./inc/config/Config.sol";
 import "./inc/data/DataEntry.sol";
 import "./inc/data/VerificationSlot.sol";
+import "./inc/senders/SenderInformation.sol";
 import "./inc/verifiers/VerificationResult.sol";
 import "./inc/verifiers/VerifierInformation.sol";
 import "hardhat/console.sol";
@@ -36,6 +37,7 @@ contract PrivacyFirstContract {
     //Verifier containing
     mapping(uint256 => mapping(uint8 => VerificationSlot)) private _verificationSlots;
     mapping(address => VerifierInformation) private _verifierInformation;
+    mapping(address => SenderInformation) private _senderInformation;
 
     //Campaign lifecycle
     bool private _campaignOpen;
@@ -49,6 +51,9 @@ contract PrivacyFirstContract {
     uint private _allocatedSupply;
     uint private _senderSupplyBond;
     uint private _verifierSupplyBond;
+    // DST INFO / BONDS TO SUPPLY FOR WORK
+    uint private _requiredSenderBond;
+    uint private _requiredVerifierBond;
     //Chunking
     PackedPosition private _smartContractOrigin;
     PackedPosition private _smartContractEnd;
@@ -104,6 +109,9 @@ contract PrivacyFirstContract {
         //Data
         _validDataCount = 0;
         _uniqueValidSenders = 0;
+
+        _requiredSenderBond = _config.needs.maxDataPerSender * _config.rewardConfig.dataSenderBondPerData;
+        _requiredVerifierBond = _config.needs.maxDataPerVerifierPerBond * _config.rewardConfig.dataVerifierBondPerData;
     }
 
     // ---------------------------
@@ -250,16 +258,26 @@ contract PrivacyFirstContract {
         _tryRewardVerifier(dataId, slotIndex);
     }
 
-    // ------------------------------------------------
-    // Public / external functions - REFERS TO PAYMENTS
-    // ------------------------------------------------
-
     function payInitialSupply() external {
         require(_campaignOpen, "Campaign is closed");
         require(_owner == msg.sender, "Initial supply can be settled only by owner");
         _dstContract.transferFrom(msg.sender, address(this), _config.rewardConfig.totalDst);
         _remainingSupply = _config.rewardConfig.totalDst;
         _initialSupplySettled = true;
+    }
+
+    function senderPayBond() external {
+        require(_senders[msg.sender], "Not a sender");
+        _dstContract.transferFrom(msg.sender, address(this), _requiredSenderBond);
+        _senderSupplyBond = _senderSupplyBond + _requiredSenderBond;
+        //We have paid, so we can update the sender state.
+        //TODO: CONTINUARE TUTTA L'IMPLEMENTAZIONE.
+    }
+
+    function verifierPayBond() external {
+        require(_verifiers[msg.sender], "Not a verifier");
+        _dstContract.transferFrom(msg.sender, address(this), _requiredVerifierBond);
+        _verifierSupplyBond = _verifierSupplyBond + _requiredVerifierBond;
     }
 
     // Campaign public methods
@@ -363,35 +381,6 @@ contract PrivacyFirstContract {
     // ------------------------------------
     // Private methods - REFERS TO PAYMENTS
     // ------------------------------------
-
-    function _userPayContract(bool isSender) internal {
-        require(msg.sender != _owner, "Owner can settle only the initial supply");
-
-        if (isSender) {
-            _paySender();
-        } else {
-            _payVerifier();
-        }
-
-        //TODO SALVARE I SENDER/VERIFIERS AL DATO CHE HANNO INVIATO O STANNO VERIFICANDO
-    }
-
-    function _paySender() internal {
-        require(_senders[msg.sender], "Not a sender");
-        _dstContract.transferFrom(msg.sender, address(this), _config.rewardConfig.dataSenderBond);
-        _senderSupplyBond = _senderSupplyBond + _config.rewardConfig.dataSenderBond;
-
-        // TODO: associa msg.sender al dato inviato
-    }
-
-    function _payVerifier() internal {
-        require(_verifiers[msg.sender], "Not a verifier");
-
-        _dstContract.transferFrom(msg.sender, address(this), _config.rewardConfig.dataVerifierBond);
-        _verifierSupplyBond = _verifierSupplyBond + _config.rewardConfig.dataVerifierBond;
-
-        // TODO: associa msg.sender al dato verificato
-    }
 
     function _computeDstPerDatum(Config calldata config) pure internal returns (uint256)  {
         return config.rewardConfig.dataSenderPayout + (config.needs.checksRequired * config.rewardConfig.dataVerifierPayout);
