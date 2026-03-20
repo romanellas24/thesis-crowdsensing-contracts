@@ -146,7 +146,7 @@ describe("[REWARDS] PrivacyFirstContract", function () {
         await privacyContract.connect(verifier4).submitVerifyResult(1); // majority REJECTED
 
         const v1After = await dataSentToken.balanceOf(verifier1.address);
-        expect(v1After - v1Before + BigInt(contractConfiguration.rewardConfig.dataSenderBondPerData)).to.equal(contractConfiguration.rewardConfig.dataVerifierPayout);
+        expect(v1After - v1Before - BigInt(contractConfiguration.rewardConfig.dataSenderBondPerData)).to.equal(contractConfiguration.rewardConfig.dataVerifierPayout);
     });
 
 });
