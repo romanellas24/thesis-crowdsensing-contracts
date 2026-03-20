@@ -8,6 +8,7 @@ import utils from "../testUtils/utils";
 require('dotenv').config();
 
 import {contractDeployment, sender1, verifier1, verifier2, verifier3, verifier4, owner, ownerKeys, validPosition, contractConfiguration} from "../testUtils/constants";
+import {bigint} from "hardhat/internal/core/params/argumentTypes";
 
 describe("[REWARDS] PrivacyFirstContract", function () {
 
@@ -48,7 +49,7 @@ describe("[REWARDS] PrivacyFirstContract", function () {
         await privacyContract.connect(verifier4).submitVerifyResult(0);
 
         const senderBalanceAfter = await dataSentToken.balanceOf(sender1.address);
-        expect(senderBalanceAfter - senderBalanceBefore).to.equal(
+        expect(senderBalanceAfter - BigInt(contractConfiguration.rewardConfig.dataSenderBondPerData)  - senderBalanceBefore).to.equal(
             contractConfiguration.rewardConfig.dataSenderPayout
         );
     });
@@ -86,8 +87,8 @@ describe("[REWARDS] PrivacyFirstContract", function () {
 
         const v1After = await dataSentToken.balanceOf(verifier1.address);
         const v2After = await dataSentToken.balanceOf(verifier2.address);
-        expect(v1After - v1Before).to.equal(contractConfiguration.rewardConfig.dataVerifierPayout);
-        expect(v2After - v2Before).to.equal(contractConfiguration.rewardConfig.dataVerifierPayout);
+        expect(v1After - v1Before - BigInt(contractConfiguration.rewardConfig.dataSenderBondPerData)).to.equal(contractConfiguration.rewardConfig.dataVerifierPayout);
+        expect(v2After - v2Before - BigInt(contractConfiguration.rewardConfig.dataSenderBondPerData)).to.equal(contractConfiguration.rewardConfig.dataVerifierPayout);
     });
 
     it("[REWARD]: Wrong verifiers get nothing", async function () {
@@ -145,7 +146,7 @@ describe("[REWARDS] PrivacyFirstContract", function () {
         await privacyContract.connect(verifier4).submitVerifyResult(1); // majority REJECTED
 
         const v1After = await dataSentToken.balanceOf(verifier1.address);
-        expect(v1After - v1Before).to.equal(contractConfiguration.rewardConfig.dataVerifierPayout);
+        expect(v1After - v1Before + BigInt(contractConfiguration.rewardConfig.dataSenderBondPerData)).to.equal(contractConfiguration.rewardConfig.dataVerifierPayout);
     });
 
 });

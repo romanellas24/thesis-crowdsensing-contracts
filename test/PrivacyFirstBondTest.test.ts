@@ -123,6 +123,21 @@ describe("[BOND MECHANISM] PrivacyFirstContract", function () {
         expect(senderBalanceAfter).to.equal(senderBalanceBefore);
     });
 
+    it("[BOND]: maxDataPerSender rejects after limit", async function () {
+        const {privacyContract} = await loadFixture(readyForBondTests);
+
+        // maxDataPerSender: 5, already submitted 1 in fixture
+        for (let i = 2; i <= 5; i++) {
+            const cid = ethers.toUtf8Bytes(`QmEncryptedCid_${i}`);
+            await privacyContract.connect(sender1).publishIpfsCid(cid, validPosition);
+        }
+
+        const cid6 = ethers.toUtf8Bytes("QmEncryptedCid_6");
+        await expect(
+            privacyContract.connect(sender1).publishIpfsCid(cid6, validPosition)
+        ).to.be.revertedWith("Max data limit reached");
+    });
+
     it("[BOND]: Non-sender cannot pay sender bond", async function () {
         const {privacyContract} = await loadFixture(readyForBondTests);
         await expect(

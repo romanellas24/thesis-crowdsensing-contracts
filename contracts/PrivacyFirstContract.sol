@@ -266,7 +266,7 @@ contract PrivacyFirstContract {
         if (_verificationSlots[dataId][slotIndex].deadline < block.timestamp) { //expired
             _makeVerifierAbleToOperate(msg.sender);
             _removeVerifierFromData(dataId, slotIndex);
-            _verifierInformation[msg.sender].bondBalance += _config.rewardConfig.dataVerifierBondPerData;
+            _verifierInformation[msg.sender].bondBalance = _verifierInformation[msg.sender].bondBalance + _config.rewardConfig.dataVerifierBondPerData;
             return;
         }
 
@@ -440,10 +440,12 @@ contract PrivacyFirstContract {
 
     function _rewardSender(uint256 dataId) internal {
         address sender = _dataEntries[dataId].sender;
+        uint256 total = _config.rewardConfig.dataSenderPayout + _config.rewardConfig.dataSenderBondPerData;
         require(_remainingSupply >= _config.rewardConfig.dataSenderPayout, "Insufficient supply");
-        _senderInformation[sender].bondBalance = _senderInformation[sender].bondBalance + _config.rewardConfig.dataSenderBondPerData;
-        _dstContract.transfer(sender, _config.rewardConfig.dataSenderPayout);
+        require(_senderSupplyBond >= _config.rewardConfig.dataSenderBondPerData, "Insufficient bond for senders (should never happen)");
         _remainingSupply = _remainingSupply - _config.rewardConfig.dataSenderPayout;
+        _senderSupplyBond = _senderSupplyBond - _config.rewardConfig.dataSenderBondPerData;
+        _dstContract.transfer(sender, total);
     }
 
     //Reward verifiers on majority determination
@@ -453,10 +455,12 @@ contract PrivacyFirstContract {
             VerificationSlot storage slot = _verificationSlots[dataId][i];
             if (!slot.completed) continue;
             if (slot.result == dataWasValid) {
+                uint256 total = _config.rewardConfig.dataVerifierPayout + _config.rewardConfig.dataVerifierBondPerData;
                 require(_remainingSupply >= _config.rewardConfig.dataVerifierPayout, "Insufficient supply");
-                _verifierInformation[slot.verifier].bondBalance = _verifierInformation[slot.verifier].bondBalance + _config.rewardConfig.dataVerifierBondPerData;
-                _dstContract.transfer(slot.verifier, _config.rewardConfig.dataVerifierPayout);
+                require(_verifierSupplyBond >= _config.rewardConfig.dataVerifierBondPerData, "Insufficient bond for verifiers (should never happen)");
+                _dstContract.transfer(slot.verifier, total);
                 _remainingSupply = _remainingSupply - _config.rewardConfig.dataVerifierPayout;
+                _verifierSupplyBond = _verifierSupplyBond - _config.rewardConfig.dataVerifierBondPerData;
             }
         }
     }
@@ -471,10 +475,12 @@ contract PrivacyFirstContract {
             || (status == DataStatus.INVALID && !slot.result);
 
         if (votedCorrectly) {
+            uint256 total = _config.rewardConfig.dataVerifierPayout + _config.rewardConfig.dataVerifierBondPerData;
             require(_remainingSupply >= _config.rewardConfig.dataVerifierPayout, "Insufficient supply");
-            _verifierInformation[slot.verifier].bondBalance = _verifierInformation[slot.verifier].bondBalance + _config.rewardConfig.dataVerifierBondPerData;
-            _dstContract.transfer(slot.verifier, _config.rewardConfig.dataVerifierPayout);
-            _remainingSupply -= _config.rewardConfig.dataVerifierPayout;
+            require(_verifierSupplyBond >= _config.rewardConfig.dataVerifierBondPerData, "Insufficient bond for verifiers (should never happen)");
+            _dstContract.transfer(slot.verifier, total);
+            _remainingSupply = _remainingSupply - _config.rewardConfig.dataVerifierPayout;
+            _verifierSupplyBond = _verifierSupplyBond - _config.rewardConfig.dataVerifierBondPerData;
         }
     }
 
