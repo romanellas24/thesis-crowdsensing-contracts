@@ -74,9 +74,9 @@ contract PrivacyFirstContract {
     // Constructor
     // ---------------------------
     constructor(string memory ownerPubKey, Config memory config, address dstContractAddress) {
-        require(config.rewardConfig.dataSenderPayout > config.rewardConfig.dataSenderBond,
+        require(config.rewardConfig.dataSenderPayout > config.rewardConfig.dataSenderBondPerData,
             "The senders payout isn't greater than senders bond");
-        require(config.rewardConfig.dataVerifierPayout > config.rewardConfig.dataVerifierBond,
+        require(config.rewardConfig.dataVerifierPayout > config.rewardConfig.dataVerifierBondPerData,
             "The verifiers payout isn't greater than verifiers bond");
         require(config.originCoordinates.isValid(), "Origin coordinates should be valid");
         require(config.needs.checksRequired % 2 == 1, "Checks must be odd");
