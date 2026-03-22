@@ -8,7 +8,6 @@ import "./inc/data/VerificationSlot.sol";
 import "./inc/senders/SenderInformation.sol";
 import "./inc/verifiers/VerificationResult.sol";
 import "./inc/verifiers/VerifierInformation.sol";
-import "hardhat/console.sol";
 import {DataSentTokenContract} from "./DataSentTokenContract.sol";
 
 
@@ -24,7 +23,6 @@ contract PrivacyFirstContract {
     address payable private _owner;
     string private _ownerPubKey;
     Config private _config;
-    bytes private _initiatorPublicKey;
     //users that have enrolled (waiting for B's encryption key publishing)
     mapping(address => bool) private _senderEnrolledRequest;
     mapping(address => bool) private _verifierEnrolledRequest;
@@ -48,7 +46,6 @@ contract PrivacyFirstContract {
     //DST INFO
     bool private _initialSupplySettled;
     uint private _remainingSupply;
-    uint private _allocatedSupply;
     uint private _senderSupplyBond;
     uint private _verifierSupplyBond;
     // DST INFO / BONDS TO SUPPLY FOR WORK
@@ -93,7 +90,6 @@ contract PrivacyFirstContract {
         _remainingSupply = 0;
         _senderSupplyBond = 0;
         _verifierSupplyBond = 0;
-        _allocatedSupply = 0;
 
         //Campaign Coordinates
         _smartContractOrigin = config.originCoordinates.packCoordinates();
@@ -160,18 +156,6 @@ contract PrivacyFirstContract {
             bondBalance: 0
         });
         emit VerifierDecryptionKeyReady(verifier, decryptionKey);
-    }
-
-    function getVerifiersKeys() public view virtual returns (bytes[] memory) {
-        // TODO: IMPLEMENT
-    }
-
-    function publishIpfsDecryptionKey(address sender) public virtual {
-        // TODO: IMPLEMENT
-    }
-
-    function getIpfsDecryptionKey(address sender) public view virtual returns (bytes memory) {
-        // TODO: IMPLEMENT
     }
 
     function publishIpfsCid(bytes memory encryptedCid, GlobalPosition calldata position) external virtual {
@@ -433,10 +417,6 @@ contract PrivacyFirstContract {
     // ------------------------------------
     // Private methods - REFERS TO PAYMENTS
     // ------------------------------------
-
-    function _computeDstPerDatum(Config calldata config) pure internal returns (uint256)  {
-        return config.rewardConfig.dataSenderPayout + (config.needs.checksRequired * config.rewardConfig.dataVerifierPayout);
-    }
 
     function _rewardSender(uint256 dataId) internal {
         address sender = _dataEntries[dataId].sender;
