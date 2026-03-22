@@ -3,14 +3,24 @@ import {
 } from "@nomicfoundation/hardhat-toolbox/network-helpers";
 import {expect} from "chai";
 import {ethers} from "hardhat";
-import type {HardhatEthersSigner} from "@nomicfoundation/hardhat-ethers/signers";
-import cipher from "../testUtils/cipher";
 import utils from "../testUtils/utils";
+import {
+    contractConfiguration,
+    sender1,
+    sender2,
+    sender3,
+    verifier1,
+    verifier2,
+    verifier3,
+    verifier4,
+    interestedUser,
+    ownerKeys,
+    owner
+} from "../testUtils/constants";
+
+const DST_OWNERS = [sender1, sender2, sender3, verifier1, verifier2, verifier3, verifier4, interestedUser];
 
 require('dotenv').config();
-
-let owner: HardhatEthersSigner, sender1: HardhatEthersSigner;
-const ownerKeys = cipher.generateKeyPair();
 
 // Valid position: center of the area
 const validPosition = {
@@ -54,40 +64,18 @@ const northeastPosition = {
     longitudeDecimal: 5900000,  // 11.59°
 };
 
-let contractConfiguration = {
-    needs: {
-        freshnessPeriod: 3600,
-        dataNeeded: 3,
-        checksRequired: 7,
-        verifierCooldown: 2,
-        verificationTimeout: 300,
-        minimumParticipants: 1,
-        maxDataPerSender: 5,
-        maxDataPerVerifierPerBond: 5
-    },
-    chunkConfig: {
-        chunkSize: 1000000,
-        chunk4Side: 5
-    },
+let contractConfigurationSpatialChunking = {
+    needs: contractConfiguration.needs,
+    chunkConfig: contractConfiguration.chunkConfig,
     rewardConfig: {
-        totalDst: MAX_DST,
+        ...contractConfiguration.rewardConfig,
         dataSenderBond: 1,
-        dataVerifierBond: 1,
-        dataSenderPayout: 100,
-        dataVerifierPayout: 30,
-        dataSenderBondPerData: 1,
-        dataVerifierBondPerData: 1
+        dataVerifierBond: 1
     },
-    originCoordinates: {
-        latitudeInteger: 41,
-        latitudeDecimal: 1000000,
-        longitudeInteger: 11,
-        longitudeDecimal: 1000000,
-    }
+    originCoordinates: contractConfiguration.originCoordinates,
 }
 
 async function contractDeployment() {
-    [owner, sender1] = await ethers.getSigners();
     const DST_OWNERS = [sender1];
     const DST_FOR_OWNERS = 100;
 
@@ -96,13 +84,13 @@ async function contractDeployment() {
     const dataSentToken = await DataSentTokenContract.deploy(999999999);
     const privacyContract = await PrivacyFirstContract.deploy(
         ownerKeys.publicKey,
-        contractConfiguration,
+        contractConfigurationSpatialChunking,
         await dataSentToken.getAddress()
     );
 
     await dataSentToken.connect(owner).approve(
         await privacyContract.getAddress(),
-        contractConfiguration.rewardConfig.totalDst
+        contractConfigurationSpatialChunking.rewardConfig.totalDst
     );
     for (const dstOwner of DST_OWNERS) {
         await dataSentToken.transfer(await dstOwner.getAddress(), DST_FOR_OWNERS);
@@ -185,6 +173,120 @@ describe("[SPATIAL CHUNKING] PrivacyFirstContract", function () {
         await expect(
             privacyContract.connect(sender1).publishIpfsCid(cid, invalidPosition)
         ).to.be.revertedWith("Invalid Coordinates");
+    });
+
+    const southwestPosition = {
+        latitudeInteger: 41,
+        latitudeDecimal: 1000000,
+        longitudeInteger: 11,
+        longitudeDecimal: 1000000,
+    };
+
+    async function chunkLimitDeployment() {
+        const DST_FOR_OWNERS = 100;
+
+        //@ts-ignore
+        [owner, sender1, sender2, sender3, verifier1, verifier2, verifier3, verifier4, interestedUser] = await ethers.getSigners();
+        const DST_OWNERS = [sender1, sender2, sender3, verifier1, verifier2, verifier3, verifier4];
+
+        const PrivacyFirstContract = await ethers.getContractFactory("PrivacyFirstContract");
+        const DataSentTokenContract = await ethers.getContractFactory("DataSentTokenContract");
+        const dataSentToken = await DataSentTokenContract.deploy(999999999);
+        const privacyContract = await PrivacyFirstContract.deploy(
+            ownerKeys.publicKey,
+            {
+                needs: {
+                    ...contractConfiguration.needs,
+                    maximumDataPerChunk: 1,
+                    maxDataPerSender: 0  // unlimited so chunk limit is tested, not sender limit
+                },
+                rewardConfig: contractConfiguration.rewardConfig,
+                originCoordinates: contractConfiguration.originCoordinates,
+                chunkConfig: contractConfiguration.chunkConfig
+            },
+            await dataSentToken.getAddress()
+        );
+        await dataSentToken.connect(owner).approve(
+            await privacyContract.getAddress(),
+            contractConfiguration.rewardConfig.totalDst
+        );
+        for (const dstOwner of DST_OWNERS) {
+            await dataSentToken.transfer(await dstOwner.getAddress(), DST_FOR_OWNERS);
+        }
+        await privacyContract.connect(owner).payInitialSupply();
+        return {privacyContract, dataSentToken};
+    }
+
+    async function unlimitedChunkDeployment() {
+        const DST_FOR_OWNERS = 100;
+        //@ts-ignore
+        [owner, sender1, sender2, sender3, verifier1, verifier2, verifier3, verifier4, interestedUser] = await ethers.getSigners();
+        const DST_OWNERS = [sender1, sender2, sender3, verifier1, verifier2, verifier3, verifier4];
+
+        const PrivacyFirstContract = await ethers.getContractFactory("PrivacyFirstContract");
+        const DataSentTokenContract = await ethers.getContractFactory("DataSentTokenContract");
+        const dataSentToken = await DataSentTokenContract.deploy(999999999);
+        const privacyContract = await PrivacyFirstContract.deploy(
+            ownerKeys.publicKey,
+            {
+                needs: {
+                    ...contractConfiguration.needs,
+                    maximumDataPerChunk: 0
+                },
+                rewardConfig: contractConfiguration.rewardConfig,
+                originCoordinates: contractConfiguration.originCoordinates,
+                chunkConfig: contractConfiguration.chunkConfig
+            },
+            await dataSentToken.getAddress()
+        );
+        await dataSentToken.connect(owner).approve(
+            await privacyContract.getAddress(),
+            contractConfiguration.rewardConfig.totalDst
+        );
+        for (const dstOwner of DST_OWNERS) {
+            await dataSentToken.transfer(await dstOwner.getAddress(), DST_FOR_OWNERS);
+        }
+        await privacyContract.connect(owner).payInitialSupply();
+        return {privacyContract, dataSentToken};
+    }
+
+    it("[SENDER]: Data rejected when chunk is full", async function () {
+        const {privacyContract} = await chunkLimitDeployment();
+        await utils.setupOwnerPrivacy(owner, privacyContract, ownerKeys);
+        await utils.setupSenderPrivacy(sender1, privacyContract);
+
+        const cid1 = ethers.toUtf8Bytes("QmEncryptedCid_1");
+        await privacyContract.connect(sender1).publishIpfsCid(cid1, validPosition);
+
+        const cid2 = ethers.toUtf8Bytes("QmEncryptedCid_2");
+        await expect(
+            privacyContract.connect(sender1).publishIpfsCid(cid2, validPosition)
+        ).to.be.revertedWith("Too many data in this chunk!");
+    });
+
+    it("[SENDER]: Different chunks accept data independently", async function () {
+        const {privacyContract} = await chunkLimitDeployment();
+        await utils.setupOwnerPrivacy(owner, privacyContract, ownerKeys);
+        await utils.setupSenderPrivacy(sender1, privacyContract);
+
+        const cid1 = ethers.toUtf8Bytes("QmEncryptedCid_1");
+        await privacyContract.connect(sender1).publishIpfsCid(cid1, validPosition);
+
+        const cid2 = ethers.toUtf8Bytes("QmEncryptedCid_2");
+        await expect(
+            privacyContract.connect(sender1).publishIpfsCid(cid2, southwestPosition)
+        ).to.emit(privacyContract, "DataVerificationRequestedEvent");
+    });
+
+    it("[SENDER]: maximumDataPerChunk = 0 means unlimited", async function () {
+        const {privacyContract} = await unlimitedChunkDeployment();
+        await utils.setupOwnerPrivacy(owner, privacyContract, ownerKeys);
+        await utils.setupSenderPrivacy(sender1, privacyContract);
+
+        for (let i = 0; i < 5; i++) {
+            const cid = ethers.toUtf8Bytes(`QmEncryptedCid_${i}`);
+            await privacyContract.connect(sender1).publishIpfsCid(cid, validPosition);
+        }
     });
 
 });

@@ -54,6 +54,7 @@ contract PrivacyFirstContract {
     //Chunking
     PackedPosition private _smartContractOrigin;
     PackedPosition private _smartContractEnd;
+    mapping(uint16 => uint) private _dataPerChunkReceived;
 
     // ---------------------------
     // Events
@@ -162,12 +163,13 @@ contract PrivacyFirstContract {
         require(_campaignOpen, "Campaign is closed");
         require(_senders[msg.sender], "Only senders allowed to send data.");
         require(position.isValid(), "Invalid Coordinates");
-        require(_senderInformation[msg.sender].dataSubmitted < _config.needs.maxDataPerSender, "Max data limit reached");
-        require(_senderInformation[msg.sender].bondBalance >= _config.rewardConfig.dataSenderBondPerData, "Insufficient DST balance in bond, please refund");
+        require(_senderInformation[msg.sender].dataSubmitted < _config.needs.maxDataPerSender || _config.needs.maxDataPerSender == 0, "Max data limit reached");
+        require(_senderInformation[msg.sender].bondBalance >= _config.rewardConfig.dataSenderBondPerData || _config.needs.maxDataPerSender == 0, "Insufficient DST balance in bond, please refund");
 
         PackedPosition memory packed = position.packCoordinates();
         (uint16 chunkIndex, bool inside) = _getChunkIndex(packed);
         require(inside, "Outside campaign area");
+        require(_dataPerChunkReceived[chunkIndex] < _config.needs.maximumDataPerChunk || _config.needs.maximumDataPerChunk == 0, "Too many data in this chunk!");
 
         _dataEntries[_dataCount] = DataEntry({
             sender: msg.sender,
@@ -178,10 +180,14 @@ contract PrivacyFirstContract {
             assignedChecks: 0,
             chunkIndex: chunkIndex
         });
+        _dataPerChunkReceived[chunkIndex]++;
         _senderInformation[msg.sender].dataSubmitted++;
         emit DataVerificationRequestedEvent(_dataCount);
         _dataCount++;
-        _senderInformation[msg.sender].bondBalance = _senderInformation[msg.sender].bondBalance - _config.rewardConfig.dataSenderBondPerData;
+
+        if (_config.needs.maxDataPerSender > 0) {
+            _senderInformation[msg.sender].bondBalance = _senderInformation[msg.sender].bondBalance - _config.rewardConfig.dataSenderBondPerData;
+        }
 
     }
 
@@ -301,12 +307,12 @@ contract PrivacyFirstContract {
         require(_senders[msg.sender] || _verifiers[msg.sender], "Not a sender neither verifier");
         require((_senderInformation[msg.sender].bondBalance + _verifierInformation[msg.sender].bondBalance) > 0, "Nothing to withdraw");
         uint256 amount = 0;
-        if(_senders[msg.sender]){
+        if (_senders[msg.sender]) {
             amount = _senderInformation[msg.sender].bondBalance;
             _senderSupplyBond = _senderSupplyBond - _senderInformation[msg.sender].bondBalance;
             _senderInformation[msg.sender].bondBalance = 0;
         }
-        if(_verifiers[msg.sender]){
+        if (_verifiers[msg.sender]) {
             amount = amount + _verifierInformation[msg.sender].bondBalance;
             _verifierSupplyBond = _verifierSupplyBond - _verifierInformation[msg.sender].bondBalance;
             _verifierInformation[msg.sender].bondBalance = 0;
@@ -466,10 +472,24 @@ contract PrivacyFirstContract {
 
     //Campaign private methods
     function _checkCampaignCompletion() internal {
-        if (_validDataCount >= _config.needs.dataNeeded
-            && _uniqueValidSenders >= _config.needs.minimumParticipants) {
+        bool dataOk = _config.needs.dataNeeded == 0 || _validDataCount >= _config.needs.dataNeeded;
+        bool participantsOk = _config.needs.minimumParticipants == 0 || _uniqueValidSenders >= _config.needs.minimumParticipants;
+
+        if (dataOk && participantsOk && (_config.needs.dataNeeded > 0 || _config.needs.minimumParticipants > 0)) {
             _campaignOpen = false;
             emit CampaignClosed();
+        }
+    }
+
+    function getCampaignData() external view returns (bytes[] memory cids, DataStatus[] memory statuses, uint16[] memory chunks) {
+        require(msg.sender == _owner, "Only owner");
+        cids = new bytes[](_dataCount);
+        statuses = new DataStatus[](_dataCount);
+        chunks = new uint16[](_dataCount);
+        for (uint256 i = 0; i < _dataCount; i++) {
+            cids[i] = _dataEntries[i].encryptedCid;
+            statuses[i] = _dataEntries[i].status;
+            chunks[i] = _dataEntries[i].chunkIndex;
         }
     }
 

@@ -19,7 +19,8 @@ export const contractConfiguration = {
         verificationTimeout: 300,
         minimumParticipants: 1,
         maxDataPerSender: 5,
-        maxDataPerVerifierPerBond: 5
+        maxDataPerVerifierPerBond: 5,
+        maximumDataPerChunk: 10
     },
     chunkConfig: {
         chunkSize: 1000000,
