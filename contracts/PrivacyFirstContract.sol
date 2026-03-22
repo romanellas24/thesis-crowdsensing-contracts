@@ -178,8 +178,8 @@ contract PrivacyFirstContract {
         require(_campaignOpen, "Campaign is closed");
         require(_senders[msg.sender], "Only senders allowed to send data.");
         require(position.isValid(), "Invalid Coordinates");
-        require(_senderInformation[msg.sender].bondBalance >= _config.rewardConfig.dataSenderBondPerData, "Insufficient DST balance in bond, please refund");
         require(_senderInformation[msg.sender].dataSubmitted < _config.needs.maxDataPerSender, "Max data limit reached");
+        require(_senderInformation[msg.sender].bondBalance >= _config.rewardConfig.dataSenderBondPerData, "Insufficient DST balance in bond, please refund");
 
         PackedPosition memory packed = position.packCoordinates();
         (uint16 chunkIndex, bool inside) = _getChunkIndex(packed);
