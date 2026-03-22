@@ -282,7 +282,6 @@ describe("[DATA SUBMISSION] PrivacyFirstContract", function () {
         const cid = ethers.toUtf8Bytes("QmEncryptedCid_1");
         await privacyContract.connect(sender1).publishIpfsCid(cid, validPosition);
 
-        // 4 SUCCESS → majority (checksRequired: 7, majority: 4)
         await privacyContract.connect(verifier1).requestAuthToVerify();
         await privacyContract.connect(verifier1).submitVerifyResult(0);
         await privacyContract.connect(verifier2).requestAuthToVerify();
