@@ -8,4 +8,6 @@ struct SmartContractNeeds {
     uint verifierCooldown;
     uint verificationTimeout;
     uint minimumParticipants;
+    uint maxDataPerSender;
+    uint maxDataPerVerifierPerBond;
 }

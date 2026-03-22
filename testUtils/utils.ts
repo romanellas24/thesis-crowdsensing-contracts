@@ -3,6 +3,7 @@ import type {HardhatEthersSigner} from "@nomicfoundation/hardhat-ethers/signers"
 import {PrivacyFirstContract} from "../typechain-types";
 import cipher from "./cipher";
 import {expect} from "chai";
+import {sender1} from "./constants";
 
 export default {
     getPublicKey: async (user: HardhatEthersSigner) => {
@@ -14,9 +15,7 @@ export default {
         const signature = await user.signMessage(messageHashBytes);
 
         // ricavo della chiave pubblica
-        const pubKey = ethers.SigningKey.recoverPublicKey(messageHashBytes, signature);
-
-        return pubKey;
+        return ethers.SigningKey.recoverPublicKey(messageHashBytes, signature);
     },
 
     setupOwnerPrivacy: async (owner: HardhatEthersSigner, contract: PrivacyFirstContract, ownerKeys: { publicKey: string, privateKey: string }) => {
@@ -55,6 +54,14 @@ export default {
         expect (
             finalEncryptionKey
         ).to.not.equal("");
+
+        const dstAddress = await contract.getDstScAddress();
+        const dataSentToken = await ethers.getContractAt("DataSentTokenContract", dstAddress);
+        await dataSentToken.connect(sender).approve(
+            await contract.getAddress(),
+            await contract.getRequiredSenderBond()
+        );
+        await contract.connect(sender).senderPayBond();
     },
 
     setupVerifierPrivacy: async (verifier: HardhatEthersSigner, contract: PrivacyFirstContract) => {
@@ -79,5 +86,13 @@ export default {
         expect(
             finalDecryptionKey
         ).to.not.equal("");
+
+        const dstAddress = await contract.getDstScAddress();
+        const dataSentToken = await ethers.getContractAt("DataSentTokenContract", dstAddress);
+        await dataSentToken.connect(verifier).approve(
+            await contract.getAddress(),
+            await contract.getRequiredVerifierBond()
+        );
+        await contract.connect(verifier).verifierPayBond();
     }
 }

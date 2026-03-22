@@ -61,7 +61,9 @@ let contractConfiguration = {
         checksRequired: 7,
         verifierCooldown: 2,
         verificationTimeout: 300,
-        minimumParticipants: 1
+        minimumParticipants: 1,
+        maxDataPerSender: 5,
+        maxDataPerVerifierPerBond: 5
     },
     chunkConfig: {
         chunkSize: 1000000,
@@ -72,7 +74,9 @@ let contractConfiguration = {
         dataSenderBond: 1,
         dataVerifierBond: 1,
         dataSenderPayout: 100,
-        dataVerifierPayout: 30
+        dataVerifierPayout: 30,
+        dataSenderBondPerData: 1,
+        dataVerifierBondPerData: 1
     },
     originCoordinates: {
         latitudeInteger: 41,
@@ -84,6 +88,9 @@ let contractConfiguration = {
 
 async function contractDeployment() {
     [owner, sender1] = await ethers.getSigners();
+    const DST_OWNERS = [sender1];
+    const DST_FOR_OWNERS = 100;
+
     const PrivacyFirstContract = await ethers.getContractFactory("PrivacyFirstContract");
     const DataSentTokenContract = await ethers.getContractFactory("DataSentTokenContract");
     const dataSentToken = await DataSentTokenContract.deploy(999999999);
@@ -97,6 +104,9 @@ async function contractDeployment() {
         await privacyContract.getAddress(),
         contractConfiguration.rewardConfig.totalDst
     );
+    for (const dstOwner of DST_OWNERS) {
+        await dataSentToken.transfer(await dstOwner.getAddress(), DST_FOR_OWNERS);
+    }
 
     await privacyContract.connect(owner).payInitialSupply();
     return {privacyContract, dataSentToken}

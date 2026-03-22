@@ -5,6 +5,7 @@ import "./inc/chunks/GlobalPosition.sol";
 import "./inc/config/Config.sol";
 import "./inc/data/DataEntry.sol";
 import "./inc/data/VerificationSlot.sol";
+import "./inc/senders/SenderInformation.sol";
 import "./inc/verifiers/VerificationResult.sol";
 import "./inc/verifiers/VerifierInformation.sol";
 import "hardhat/console.sol";
@@ -35,6 +36,7 @@ contract PrivacyFirstContract {
     uint256 private _dataCount;
     //Verifier containing
     mapping(uint256 => mapping(uint8 => VerificationSlot)) private _verificationSlots;
+    mapping(address => SenderInformation) private _senderInformation;
     mapping(address => VerifierInformation) private _verifierInformation;
 
     //Campaign lifecycle
@@ -49,6 +51,9 @@ contract PrivacyFirstContract {
     uint private _allocatedSupply;
     uint private _senderSupplyBond;
     uint private _verifierSupplyBond;
+    // DST INFO / BONDS TO SUPPLY FOR WORK
+    uint private _requiredSenderBond;
+    uint private _requiredVerifierBond;
     //Chunking
     PackedPosition private _smartContractOrigin;
     PackedPosition private _smartContractEnd;
@@ -60,7 +65,7 @@ contract PrivacyFirstContract {
     event SenderEncryptionKeyReady(address sender, string encryptionKey);
     event VerifierEnrolledEvent(address indexed verifier, string key);
     event VerifierDecryptionKeyReady(address sender, string decryptionKey);
-    event DataVerificationRequestedEvent(uint256);
+    event DataVerificationRequestedEvent(uint256); //The emitted value is the index of data that is ready for verification (because it is already uploaded).
     event VerifierElected(address indexed verifier, uint256 indexed dataId, uint8 slotIndex, bytes encryptedCid);
     event DataVerified(uint256 indexed dataId, bool result);
     event CampaignClosed();
@@ -69,9 +74,9 @@ contract PrivacyFirstContract {
     // Constructor
     // ---------------------------
     constructor(string memory ownerPubKey, Config memory config, address dstContractAddress) {
-        require(config.rewardConfig.dataSenderPayout > config.rewardConfig.dataSenderBond,
+        require(config.rewardConfig.dataSenderPayout > config.rewardConfig.dataSenderBondPerData,
             "The senders payout isn't greater than senders bond");
-        require(config.rewardConfig.dataVerifierPayout > config.rewardConfig.dataVerifierBond,
+        require(config.rewardConfig.dataVerifierPayout > config.rewardConfig.dataVerifierBondPerData,
             "The verifiers payout isn't greater than verifiers bond");
         require(config.originCoordinates.isValid(), "Origin coordinates should be valid");
         require(config.needs.checksRequired % 2 == 1, "Checks must be odd");
@@ -90,7 +95,6 @@ contract PrivacyFirstContract {
         _verifierSupplyBond = 0;
         _allocatedSupply = 0;
 
-
         //Campaign Coordinates
         _smartContractOrigin = config.originCoordinates.packCoordinates();
         int32 totalArea = int32(uint32(config.chunkConfig.chunkSize * config.chunkConfig.chunk4Side));
@@ -104,6 +108,9 @@ contract PrivacyFirstContract {
         //Data
         _validDataCount = 0;
         _uniqueValidSenders = 0;
+
+        _requiredSenderBond = _config.needs.maxDataPerSender * _config.rewardConfig.dataSenderBondPerData;
+        _requiredVerifierBond = _config.needs.maxDataPerVerifierPerBond * _config.rewardConfig.dataVerifierBondPerData;
     }
 
     // ---------------------------
@@ -125,6 +132,12 @@ contract PrivacyFirstContract {
         require(_campaignOpen, "Campaign is closed");
         require(msg.sender == _owner, "Not the owner");
         _senders[sender] = true;
+        _senderInformation[sender] = SenderInformation({
+            bondBalance: 0,
+            dataSubmitted: 0,
+            validData: 0,
+            invalidData: 0
+        });
         emit SenderEncryptionKeyReady(sender, encryptionKey);
     }
 
@@ -139,6 +152,13 @@ contract PrivacyFirstContract {
         require(_campaignOpen, "Campaign is closed");
         require(msg.sender == _owner, "Not the owner");
         _verifiers[verifier] = true;
+        _verifierInformation[verifier] = VerifierInformation({
+            lastVerified: 0,
+            hasVerified: false,
+            verifyingData: 0,
+            isVerifying: false,
+            bondBalance: 0
+        });
         emit VerifierDecryptionKeyReady(verifier, decryptionKey);
     }
 
@@ -158,6 +178,8 @@ contract PrivacyFirstContract {
         require(_campaignOpen, "Campaign is closed");
         require(_senders[msg.sender], "Only senders allowed to send data.");
         require(position.isValid(), "Invalid Coordinates");
+        require(_senderInformation[msg.sender].dataSubmitted < _config.needs.maxDataPerSender, "Max data limit reached");
+        require(_senderInformation[msg.sender].bondBalance >= _config.rewardConfig.dataSenderBondPerData, "Insufficient DST balance in bond, please refund");
 
         PackedPosition memory packed = position.packCoordinates();
         (uint16 chunkIndex, bool inside) = _getChunkIndex(packed);
@@ -172,15 +194,18 @@ contract PrivacyFirstContract {
             assignedChecks: 0,
             chunkIndex: chunkIndex
         });
-
+        _senderInformation[msg.sender].dataSubmitted++;
         emit DataVerificationRequestedEvent(_dataCount);
         _dataCount++;
+        _senderInformation[msg.sender].bondBalance = _senderInformation[msg.sender].bondBalance - _config.rewardConfig.dataSenderBondPerData;
+
     }
 
     function requestAuthToVerify() external virtual {
         require(_campaignOpen, "Campaign is closed");
         require(_verifiers[msg.sender], "Only verifiers allowed");
         require(!_verifierInformation[msg.sender].isVerifying, "Already verifying data");
+        require(_verifierInformation[msg.sender].bondBalance >= _config.rewardConfig.dataVerifierBondPerData, "Insufficient DST balance in bond, please refund");
 
         uint256 start = 0;
         if (_verifierInformation[msg.sender].hasVerified) {
@@ -192,6 +217,8 @@ contract PrivacyFirstContract {
 
             (uint8 slotIndex, bool found) = _findAvailableSlot(dataIndex);
             if (!found) continue;
+
+            _verifierInformation[msg.sender].bondBalance = _verifierInformation[msg.sender].bondBalance - _config.rewardConfig.dataVerifierBondPerData;
 
             _verificationSlots[dataIndex][slotIndex] = VerificationSlot({
                 verifier: msg.sender,
@@ -231,6 +258,7 @@ contract PrivacyFirstContract {
         if (result == VerificationResult.CANNOT_COMPLETE) {
             _removeVerifierFromData(dataId, slotIndex);
             _makeVerifierAbleToOperate(msg.sender);
+            _verifierInformation[msg.sender].bondBalance = _verifierInformation[msg.sender].bondBalance + _config.rewardConfig.dataVerifierBondPerData;
             return;
         }
         //Here the verifier has a valid value for validation
@@ -238,6 +266,7 @@ contract PrivacyFirstContract {
         if (_verificationSlots[dataId][slotIndex].deadline < block.timestamp) { //expired
             _makeVerifierAbleToOperate(msg.sender);
             _removeVerifierFromData(dataId, slotIndex);
+            _verifierInformation[msg.sender].bondBalance = _verifierInformation[msg.sender].bondBalance + _config.rewardConfig.dataVerifierBondPerData;
             return;
         }
 
@@ -250,16 +279,56 @@ contract PrivacyFirstContract {
         _tryRewardVerifier(dataId, slotIndex);
     }
 
-    // ------------------------------------------------
-    // Public / external functions - REFERS TO PAYMENTS
-    // ------------------------------------------------
-
     function payInitialSupply() external {
         require(_campaignOpen, "Campaign is closed");
         require(_owner == msg.sender, "Initial supply can be settled only by owner");
         _dstContract.transferFrom(msg.sender, address(this), _config.rewardConfig.totalDst);
         _remainingSupply = _config.rewardConfig.totalDst;
         _initialSupplySettled = true;
+    }
+
+    function senderPayBond() external {
+        require(_senders[msg.sender], "Not a sender");
+        _dstContract.transferFrom(msg.sender, address(this), _requiredSenderBond);
+        _senderSupplyBond = _senderSupplyBond + _requiredSenderBond;
+        _senderInformation[msg.sender].bondBalance = _senderInformation[msg.sender].bondBalance + _requiredSenderBond;
+    }
+
+    function getRequiredSenderBond() external view returns (uint) {
+        return _requiredSenderBond;
+    }
+
+    function getRequiredVerifierBond() external view returns (uint) {
+        return _requiredVerifierBond;
+    }
+
+    function getDstScAddress() external view returns (address) {
+        return address(_dstContract);
+    }
+
+    function verifierPayBond() external {
+        require(_verifiers[msg.sender], "Not a verifier");
+        _dstContract.transferFrom(msg.sender, address(this), _requiredVerifierBond);
+        _verifierSupplyBond = _verifierSupplyBond + _requiredVerifierBond;
+        _verifierInformation[msg.sender].bondBalance = _verifierInformation[msg.sender].bondBalance + _requiredVerifierBond;
+    }
+
+    function withdrawBond() external {
+        require(_senders[msg.sender] || _verifiers[msg.sender], "Not a sender neither verifier");
+        require((_senderInformation[msg.sender].bondBalance + _verifierInformation[msg.sender].bondBalance) > 0, "Nothing to withdraw");
+        uint256 amount = 0;
+        if(_senders[msg.sender]){
+            amount = _senderInformation[msg.sender].bondBalance;
+            _senderSupplyBond = _senderSupplyBond - _senderInformation[msg.sender].bondBalance;
+            _senderInformation[msg.sender].bondBalance = 0;
+        }
+        if(_verifiers[msg.sender]){
+            amount = amount + _verifierInformation[msg.sender].bondBalance;
+            _verifierSupplyBond = _verifierSupplyBond - _verifierInformation[msg.sender].bondBalance;
+            _verifierInformation[msg.sender].bondBalance = 0;
+        }
+        require(amount > 0, "No bond to withdraw");
+        _dstContract.transfer(msg.sender, amount);
     }
 
     // Campaign public methods
@@ -327,6 +396,7 @@ contract PrivacyFirstContract {
 
         if (_dataEntries[dataId].positiveChecks >= majority) {
             _dataEntries[dataId].status = DataStatus.VALID;
+            _senderInformation[_dataEntries[dataId].sender].validData++;
             _validDataCount++;
 
             if (!_senderHasValidData[_dataEntries[dataId].sender]) {
@@ -337,10 +407,10 @@ contract PrivacyFirstContract {
             _rewardSender(dataId);
             _rewardCorrectVerifiers(dataId, true);
             emit DataVerified(dataId, true);
-
             _checkCampaignCompletion();
         } else if (_dataEntries[dataId].completedChecks - _dataEntries[dataId].positiveChecks >= majority) {
             _dataEntries[dataId].status = DataStatus.INVALID;
+            _senderInformation[_dataEntries[dataId].sender].invalidData++;
             _rewardCorrectVerifiers(dataId, false);
             emit DataVerified(dataId, false);
         }
@@ -364,44 +434,18 @@ contract PrivacyFirstContract {
     // Private methods - REFERS TO PAYMENTS
     // ------------------------------------
 
-    function _userPayContract(bool isSender) internal {
-        require(msg.sender != _owner, "Owner can settle only the initial supply");
-
-        if (isSender) {
-            _paySender();
-        } else {
-            _payVerifier();
-        }
-
-        //TODO SALVARE I SENDER/VERIFIERS AL DATO CHE HANNO INVIATO O STANNO VERIFICANDO
-    }
-
-    function _paySender() internal {
-        require(_senders[msg.sender], "Not a sender");
-        _dstContract.transferFrom(msg.sender, address(this), _config.rewardConfig.dataSenderBond);
-        _senderSupplyBond = _senderSupplyBond + _config.rewardConfig.dataSenderBond;
-
-        // TODO: associa msg.sender al dato inviato
-    }
-
-    function _payVerifier() internal {
-        require(_verifiers[msg.sender], "Not a verifier");
-
-        _dstContract.transferFrom(msg.sender, address(this), _config.rewardConfig.dataVerifierBond);
-        _verifierSupplyBond = _verifierSupplyBond + _config.rewardConfig.dataVerifierBond;
-
-        // TODO: associa msg.sender al dato verificato
-    }
-
     function _computeDstPerDatum(Config calldata config) pure internal returns (uint256)  {
         return config.rewardConfig.dataSenderPayout + (config.needs.checksRequired * config.rewardConfig.dataVerifierPayout);
     }
 
     function _rewardSender(uint256 dataId) internal {
         address sender = _dataEntries[dataId].sender;
+        uint256 total = _config.rewardConfig.dataSenderPayout + _config.rewardConfig.dataSenderBondPerData;
         require(_remainingSupply >= _config.rewardConfig.dataSenderPayout, "Insufficient supply");
-        _dstContract.transfer(sender, _config.rewardConfig.dataSenderPayout);
+        require(_senderSupplyBond >= _config.rewardConfig.dataSenderBondPerData, "Insufficient bond for senders (should never happen)");
         _remainingSupply = _remainingSupply - _config.rewardConfig.dataSenderPayout;
+        _senderSupplyBond = _senderSupplyBond - _config.rewardConfig.dataSenderBondPerData;
+        _dstContract.transfer(sender, total);
     }
 
     //Reward verifiers on majority determination
@@ -411,9 +455,12 @@ contract PrivacyFirstContract {
             VerificationSlot storage slot = _verificationSlots[dataId][i];
             if (!slot.completed) continue;
             if (slot.result == dataWasValid) {
+                uint256 total = _config.rewardConfig.dataVerifierPayout + _config.rewardConfig.dataVerifierBondPerData;
                 require(_remainingSupply >= _config.rewardConfig.dataVerifierPayout, "Insufficient supply");
-                _dstContract.transfer(slot.verifier, _config.rewardConfig.dataVerifierPayout);
+                require(_verifierSupplyBond >= _config.rewardConfig.dataVerifierBondPerData, "Insufficient bond for verifiers (should never happen)");
+                _dstContract.transfer(slot.verifier, total);
                 _remainingSupply = _remainingSupply - _config.rewardConfig.dataVerifierPayout;
+                _verifierSupplyBond = _verifierSupplyBond - _config.rewardConfig.dataVerifierBondPerData;
             }
         }
     }
@@ -428,9 +475,12 @@ contract PrivacyFirstContract {
             || (status == DataStatus.INVALID && !slot.result);
 
         if (votedCorrectly) {
+            uint256 total = _config.rewardConfig.dataVerifierPayout + _config.rewardConfig.dataVerifierBondPerData;
             require(_remainingSupply >= _config.rewardConfig.dataVerifierPayout, "Insufficient supply");
-            _dstContract.transfer(slot.verifier, _config.rewardConfig.dataVerifierPayout);
-            _remainingSupply -= _config.rewardConfig.dataVerifierPayout;
+            require(_verifierSupplyBond >= _config.rewardConfig.dataVerifierBondPerData, "Insufficient bond for verifiers (should never happen)");
+            _dstContract.transfer(slot.verifier, total);
+            _remainingSupply = _remainingSupply - _config.rewardConfig.dataVerifierPayout;
+            _verifierSupplyBond = _verifierSupplyBond - _config.rewardConfig.dataVerifierBondPerData;
         }
     }
 

@@ -68,6 +68,9 @@ describe("[CAMPAIGN LIFECYCLE] PrivacyFirstContract", function () {
         };
         // @ts-ignore
         [owner, sender1, sender2, sender3, verifier1, verifier2, verifier3, verifier4] = await ethers.getSigners();
+        const DST_OWNERS = [sender1, sender2, sender3, verifier1, verifier2, verifier3, verifier4];
+        const DST_FOR_OWNERS = 100;
+
         const PrivacyFirstContract = await ethers.getContractFactory("PrivacyFirstContract");
         const DataSentTokenContract = await ethers.getContractFactory("DataSentTokenContract");
         const dataSentToken = await DataSentTokenContract.deploy(999999999);
@@ -80,6 +83,9 @@ describe("[CAMPAIGN LIFECYCLE] PrivacyFirstContract", function () {
             await privacyContract.getAddress(),
             higherParticipantsConfig.rewardConfig.totalDst
         );
+        for (const dstOwner of DST_OWNERS) {
+            await dataSentToken.transfer(await dstOwner.getAddress(), DST_FOR_OWNERS);
+        }
         await privacyContract.connect(owner).payInitialSupply();
         await utils.setupOwnerPrivacy(owner, privacyContract, ownerKeys);
         await utils.setupSenderPrivacy(sender1, privacyContract);
