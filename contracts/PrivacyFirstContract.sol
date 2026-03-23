@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.28;
 
+import "hardhat/console.sol";
+
 import "./inc/chunks/GlobalPosition.sol";
 import "./inc/config/Config.sol";
 import "./inc/data/DataEntry.sol";
