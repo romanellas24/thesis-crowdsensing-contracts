@@ -82,6 +82,7 @@ contract PrivacyFirstContract {
         require(config.needs.checksRequired % 2 == 1, "Checks must be odd");
         require(config.chunkConfig.chunk4Side > 0, "chunk4Side must be greater than 0");
         require(config.chunkConfig.chunkSize > 0, "chunkSize must be greater than 0");
+        require(config.needs.verifierCooldown > 0, "Cooldown should be positive");
 
         _owner = payable(msg.sender);
         _ownerPubKey = ownerPubKey;
@@ -264,11 +265,14 @@ contract PrivacyFirstContract {
 
         //we can register the response
         _registerVerifierResponse(dataId, slotIndex, (result == VerificationResult.SUCCESS));
-        if (_dataEntries[dataId].status == DataStatus.PENDING) {
+        bool wasAlreadyDecided = _dataEntries[dataId].status != DataStatus.PENDING;
+        if (!wasAlreadyDecided) {
             //if pending but we can determinate a response, we can also calculate the majority.
             _determinateVerifiersDecision(dataId);
         }
-        _tryRewardVerifier(dataId, slotIndex);
+        if (wasAlreadyDecided) {
+            _tryRewardVerifier(dataId, slotIndex);
+        }
     }
 
     function payInitialSupply() external {
@@ -355,7 +359,7 @@ contract PrivacyFirstContract {
     function _getVerifierSlotIndex(uint256 dataId, address verifier) internal view returns (uint8, bool) {
         uint8 assigned = _dataEntries[dataId].assignedChecks;
         for (uint8 i = 0; i < assigned; i++)
-            if (_verificationSlots[dataId][i].verifier == verifier)
+            if (_verificationSlots[dataId][i].verifier == verifier && !_verificationSlots[dataId][i].completed)
                 return (i, true);
         return (0, false);
     }
