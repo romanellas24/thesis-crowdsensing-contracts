@@ -7,6 +7,7 @@
  *   - min / max / total
  *
  */
+import * as fs from "node:fs";
 
 interface RawRecord {
     operation: string;
@@ -24,13 +25,26 @@ export class GasTracker {
     private senderGas: Map<number, {gas: bigint, dataSent: number}> = new Map();
     private verifierGas: Map<number, {gas: bigint, checksSubmitted: number}> = new Map();
 
-    private rawRecords: RawRecord[] = [];
     private callCounters: Map<string, number> = new Map();
+
+    private rawStream: fs.WriteStream | null = null;
+
+    setRawStream(stream: fs.WriteStream): void {
+        this.rawStream = stream;
+    }
+
+    private rawPrefix = "";
+
+    setRawPrefix(senders: number, verifiers: number): void {
+        this.rawPrefix = `${senders},${verifiers},`;
+    }
 
     record(operation: string, gas: bigint, role: "owner" | "sender" | "verifier", roleIndex = 0): void {
         const callIndex = this.callCounters.get(operation) ?? 0;
         this.callCounters.set(operation, callIndex + 1);
-        this.rawRecords.push({operation, callIndex, gas, role, roleIndex});
+        if (this.rawStream) {
+            this.rawStream.write(`${this.rawPrefix}${operation},${callIndex},${gas},${role},${roleIndex}\n`);
+        }
 
         if (!this.records.has(operation)) {
             this.records.set(operation, []);
@@ -94,7 +108,6 @@ export class GasTracker {
         this.senderGas.clear();
         this.verifierGas.clear();
 
-        this.rawRecords = [];
         this.callCounters.clear();
     }
 
@@ -134,12 +147,6 @@ export class GasTracker {
             [senders, verifiers, "PER_WALLET_sender", senders, 0, 0, 0, 0, 0, senderArray].join(","),
             [senders, verifiers, "PER_WALLET_verifier", verifiers, 0, 0, 0, 0, 0, verifierArray].join(","),
         ];
-    }
-
-    toRawCsvRows(senders: number, verifiers: number): string[] {
-        return this.rawRecords.map(r =>
-            [senders, verifiers, r.operation, r.callIndex, r.gas.toString(), r.role, r.roleIndex].join(",")
-        );
     }
 
 

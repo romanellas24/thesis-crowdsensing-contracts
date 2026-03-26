@@ -8,6 +8,7 @@ import {
     positionForChunk,
 } from "./SimulationConfig";
 import type {ContractTransaction, ContractTransactionResponse} from "ethers";
+import fs from "node:fs";
 
 const HARDHAT_MNEMONIC = "test test test test test test test test test test test junk";
 
@@ -46,6 +47,7 @@ export class ScenarioRunner {
     }
 
     async run(): Promise<string[]> {
+        this.tracker.setRawPrefix(this.senderCount, this.verifierCount);
         const t0 = Date.now();
 
         await this.deploy();
@@ -299,8 +301,8 @@ export class ScenarioRunner {
         console.log(`  [${ts}] [${this.senderCount}S×${this.verifierCount}V] ${msg}`);
     }
 
-    public getRawRows(senders: number, verifiers: number) {
-        return this.tracker.toRawCsvRows(senders, verifiers)
+    public setRawStream(stream: fs.WriteStream) {
+        this.tracker.setRawStream(stream);
     }
 
 }

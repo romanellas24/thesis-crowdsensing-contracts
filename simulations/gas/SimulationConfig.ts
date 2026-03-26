@@ -11,8 +11,8 @@
  *   verifier bondBalance only decreases (rewards go to wallet, not bondBalance).
  */
 
-export const SENDERS = [1, 10, 100, 1000, 10000];
-export const VERIFIERS = [2, 10, 100, 1000, 10000];
+export const SENDERS = [1, 10, 100, 1000];
+export const VERIFIERS = [2, 10, 100, 1000];
 export const TOTAL_CIDS = 10_000;
 export const TOTAL_CHUNKS = 100;   // 10x10 grid
 export const CHECKS_REQUIRED = 3;  // odd, majority = 2

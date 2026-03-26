@@ -41,8 +41,6 @@ function getCompletedScenarios(filePath: string): Set<string> {
 
 async function main() {
     const scenarios = generateScenarios();
-    const rows: string[] = [CSV_HEADER];
-    const rawRows: string[] = [RAW_CSV_HEADER];
 
     console.log(`=== Gas Consumption Simulation ===`);
     console.log(`Scenarios: ${scenarios.length}`);
@@ -51,6 +49,12 @@ async function main() {
 
     for (let i = 0; i < scenarios.length; i++) {
         const {senders, verifiers} = scenarios[i];
+        if (!fs.existsSync(OUTPUT_FILE)) {
+            fs.writeFileSync(OUTPUT_FILE, CSV_HEADER + "\n");
+        }
+        if (!fs.existsSync(RAW_OUTPUT_FILE)) {
+            fs.writeFileSync(RAW_OUTPUT_FILE, RAW_CSV_HEADER + "\n");
+        }
         if (completed.has(`${senders},${verifiers}`)) {
             console.log(`  Skipping ${senders}S × ${verifiers}V (already done)`);
             continue;
@@ -59,21 +63,17 @@ async function main() {
         console.log("─".repeat(50));
 
         const runner = new ScenarioRunner(senders, verifiers);
+        const rawStream = fs.createWriteStream(RAW_OUTPUT_FILE, {flags: 'a'})
+        runner.setRawStream(rawStream);
         const csvRows = await runner.run();
-        rows.push(...csvRows);
-        rawRows.push(...runner.getRawRows(senders, verifiers));
-        fs.writeFileSync(RAW_OUTPUT_FILE, rawRows.join("\n") + "\n");
-
-        // Incremental save
-        fs.writeFileSync(OUTPUT_FILE, rows.join("\n") + "\n");
-        console.log(`Saved ${rows.length - 1} total data rows to ${OUTPUT_FILE}`);
+        fs.appendFileSync(OUTPUT_FILE, csvRows.join("\n") + "\n");
+        rawStream.end()
 
         // Reset Hardhat state between scenarios to free memory
         await ethers.provider.send("hardhat_reset", []);
     }
 
     console.log(`\n=== Simulation complete ===`);
-    console.log(`Total data rows: ${rows.length - 1}`);
     console.log(`Results: ${OUTPUT_FILE}`);
 }
 
