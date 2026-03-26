@@ -77,7 +77,20 @@ export class ScenarioRunner {
         const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
         this.log(`Scenario done in ${elapsed}s`);
 
-        return this.tracker.toCsvRows(this.senderCount, this.verifierCount);
+        const out: string[] = this.tracker.toCsvRows(this.senderCount, this.verifierCount);
+        this.tracker.clear();
+        this.cleanup();
+
+        return out;
+
+    }
+
+    private cleanup(): void {
+        this.senderWallets = [];
+        this.verifierWallets = [];
+        this.contract = null;
+        this.dstToken = null;
+        this.ownerSigner = null;
     }
 
     // Deploy
