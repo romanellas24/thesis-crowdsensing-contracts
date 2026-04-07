@@ -34,6 +34,10 @@ contract PrivacyFirstContract {
     //data containing
     mapping(uint256 => DataEntry) private _dataEntries;
     uint256 private _dataCount;
+    //Data pending optimization
+    uint256[] private _pendingDataIds;
+    mapping(uint256 => uint256) private _pendingIndex;
+
     //Verifier containing
     mapping(uint256 => mapping(uint8 => VerificationSlot)) private _verificationSlots;
     mapping(address => SenderInformation) private _senderInformation;
@@ -186,6 +190,10 @@ contract PrivacyFirstContract {
         _dataPerChunkReceived[chunkIndex]++;
         _senderInformation[msg.sender].dataSubmitted++;
         emit DataVerificationRequestedEvent(_dataCount);
+
+        _pendingIndex[_dataCount] = _pendingDataIds.length;
+        _pendingDataIds.push(_dataCount);
+
         _dataCount++;
 
         if (_config.needs.maxDataPerSender > 0) {
@@ -200,13 +208,15 @@ contract PrivacyFirstContract {
         require(!_verifierInformation[msg.sender].isVerifying, "Already verifying data");
         require(_verifierInformation[msg.sender].bondBalance >= _config.rewardConfig.dataVerifierBondPerData, "Insufficient DST balance in bond, please refund");
 
-        uint256 start = 0;
+        uint256 cooldownMin = 0;
         if (_verifierInformation[msg.sender].hasVerified) {
-            start = _verifierInformation[msg.sender].lastVerified + _config.needs.verifierCooldown;
+            cooldownMin = _verifierInformation[msg.sender].lastVerified + _config.needs.verifierCooldown;
         }
 
-        for (uint256 dataIndex = start; dataIndex < _dataCount; dataIndex++) {
-            if (_dataEntries[dataIndex].status != DataStatus.PENDING) continue;
+        for (uint256 i = 0; i < _pendingDataIds.length; i++) {
+            uint256 dataIndex = _pendingDataIds[i];
+
+            if (dataIndex < cooldownMin) continue;
 
             (uint8 slotIndex, bool found) = _findAvailableSlot(dataIndex);
             if (!found) continue;
@@ -392,6 +402,7 @@ contract PrivacyFirstContract {
 
         if (_dataEntries[dataId].positiveChecks >= majority) {
             _dataEntries[dataId].status = DataStatus.VALID;
+            _removeFromPending(dataId);
             _senderInformation[_dataEntries[dataId].sender].validData++;
             _validDataCount++;
 
@@ -406,10 +417,20 @@ contract PrivacyFirstContract {
             _checkCampaignCompletion();
         } else if (_dataEntries[dataId].completedChecks - _dataEntries[dataId].positiveChecks >= majority) {
             _dataEntries[dataId].status = DataStatus.INVALID;
+            _removeFromPending(dataId);
             _senderInformation[_dataEntries[dataId].sender].invalidData++;
             _rewardCorrectVerifiers(dataId, false);
             emit DataVerified(dataId, false);
         }
+    }
+
+    function _removeFromPending(uint256 dataId) internal {
+        uint256 idx = _pendingIndex[dataId];
+        uint256 lastId = _pendingDataIds[_pendingDataIds.length - 1];
+        _pendingDataIds[idx] = lastId;
+        _pendingIndex[lastId] = idx;
+        _pendingDataIds.pop();
+        delete _pendingIndex[dataId];
     }
 
     function _getChunkIndex(PackedPosition memory packed) internal view returns (uint16, bool) {
