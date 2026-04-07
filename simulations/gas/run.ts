@@ -71,6 +71,7 @@ async function main() {
 
         // Reset Hardhat state between scenarios to free memory
         await ethers.provider.send("hardhat_reset", []);
+        break;
     }
 
     console.log(`\n=== Simulation complete ===`);
