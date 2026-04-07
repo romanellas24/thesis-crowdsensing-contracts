@@ -208,15 +208,15 @@ contract PrivacyFirstContract {
         require(!_verifierInformation[msg.sender].isVerifying, "Already verifying data");
         require(_verifierInformation[msg.sender].bondBalance >= _config.rewardConfig.dataVerifierBondPerData, "Insufficient DST balance in bond, please refund");
 
-        uint256 cooldownMin = 0;
-        if (_verifierInformation[msg.sender].hasVerified) {
-            cooldownMin = _verifierInformation[msg.sender].lastVerified + _config.needs.verifierCooldown;
-        }
-
         for (uint256 i = 0; i < _pendingDataIds.length; i++) {
             uint256 dataIndex = _pendingDataIds[i];
 
-            if (dataIndex < cooldownMin) continue;
+            if (_verifierInformation[msg.sender].hasVerified) {
+                uint256 last = _verifierInformation[msg.sender].lastVerified;
+                if (dataIndex >= last && dataIndex < last + _config.needs.verifierCooldown)
+                    continue;
+            }
+
 
             (uint8 slotIndex, bool found) = _findAvailableSlot(dataIndex);
             if (!found) continue;
