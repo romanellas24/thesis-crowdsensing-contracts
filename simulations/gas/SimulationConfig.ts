@@ -47,7 +47,6 @@ export function buildContractConfig(senders: number, verifiers: number) {
 
     return {
         needs: {
-            freshnessPeriod: 3600,
             dataNeeded: 0,
             minimumParticipants: 0,
             checksRequired: CHECKS_REQUIRED,

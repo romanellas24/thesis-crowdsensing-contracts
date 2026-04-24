@@ -12,7 +12,6 @@ export const ownerKeys = cipher.generateKeyPair();
 
 export const contractConfiguration = {
     needs: {
-        freshnessPeriod: 3600,
         dataNeeded: 3,
         checksRequired: 7,
         verifierCooldown: 2,
