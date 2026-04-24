@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.28;
 
-import "hardhat/console.sol";
-
 import "./inc/chunks/GlobalPosition.sol";
 import "./inc/config/Config.sol";
 import "./inc/data/DataEntry.sol";
@@ -128,6 +126,7 @@ contract PrivacyFirstContract {
     function publishEncryptedSenderPublicKey(string calldata encryptedPubKey) public virtual {
         require(_campaignOpen, "Campaign is closed");
         require(!_senderEnrolledRequest[msg.sender], "Sender has already requested to join");
+        require(!_senders[msg.sender], "Already a sender");
         _senderEnrolledRequest[msg.sender] = true;
         emit SenderEnrolledEvent(msg.sender, encryptedPubKey);
     }
@@ -142,12 +141,14 @@ contract PrivacyFirstContract {
             validData: 0,
             invalidData: 0
         });
+        delete _senderEnrolledRequest[sender];
         emit SenderEncryptionKeyReady(sender, encryptionKey);
     }
 
     function publishEncryptedVerifierPublicKey(string calldata encryptedPubKey) public virtual {
         require(_campaignOpen, "Campaign is closed");
         require(!_verifierEnrolledRequest[msg.sender], "Verifier has already requested to join");
+        require(!_verifiers[msg.sender], "Already a verifier");
         _verifierEnrolledRequest[msg.sender] = true;
         emit VerifierEnrolledEvent(msg.sender, encryptedPubKey);
     }
@@ -163,10 +164,11 @@ contract PrivacyFirstContract {
             isVerifying: false,
             bondBalance: 0
         });
+        delete _verifierEnrolledRequest[verifier];
         emit VerifierDecryptionKeyReady(verifier, decryptionKey);
     }
 
-    function publishIpfsCid(bytes memory encryptedCid, GlobalPosition calldata position) external virtual {
+    function publishIpfsCid(bytes calldata encryptedCid, GlobalPosition calldata position) external virtual {
         require(_campaignOpen, "Campaign is closed");
         require(_senders[msg.sender], "Only senders allowed to send data.");
         require(position.isValid(), "Invalid Coordinates");
@@ -185,7 +187,8 @@ contract PrivacyFirstContract {
             completedChecks: 0,
             positiveChecks: 0,
             assignedChecks: 0,
-            chunkIndex: chunkIndex
+            chunkIndex: chunkIndex,
+            earliestSlotDeadline: 0
         });
         _dataPerChunkReceived[chunkIndex]++;
         _senderInformation[msg.sender].dataSubmitted++;
@@ -197,7 +200,9 @@ contract PrivacyFirstContract {
         _dataCount++;
 
         if (_config.needs.maxDataPerSender > 0) {
-            _senderInformation[msg.sender].bondBalance = _senderInformation[msg.sender].bondBalance - _config.rewardConfig.dataSenderBondPerData;
+            unchecked {
+                _senderInformation[msg.sender].bondBalance = _senderInformation[msg.sender].bondBalance - _config.rewardConfig.dataSenderBondPerData;
+            }
         }
 
     }
@@ -217,18 +222,32 @@ contract PrivacyFirstContract {
                     continue;
             }
 
+            if (_dataEntries[dataIndex].assignedChecks >= _config.needs.checksRequired
+                && _dataEntries[dataIndex].earliestSlotDeadline > block.timestamp) {
+                continue;
+            }
+
 
             (uint8 slotIndex, bool found) = _findAvailableSlot(dataIndex);
             if (!found) continue;
 
-            _verifierInformation[msg.sender].bondBalance = _verifierInformation[msg.sender].bondBalance - _config.rewardConfig.dataVerifierBondPerData;
+            unchecked {
+                _verifierInformation[msg.sender].bondBalance = _verifierInformation[msg.sender].bondBalance - _config.rewardConfig.dataVerifierBondPerData;
+            }
+
+            uint48 deadline = uint48(block.timestamp + _config.needs.verificationTimeout);
 
             _verificationSlots[dataIndex][slotIndex] = VerificationSlot({
                 verifier: msg.sender,
                 result: false,
                 completed: false,
-                deadline: block.timestamp + _config.needs.verificationTimeout
+                deadline: deadline
             });
+
+            if (_dataEntries[dataIndex].earliestSlotDeadline == 0 ||
+                deadline < _dataEntries[dataIndex].earliestSlotDeadline) {
+                _dataEntries[dataIndex].earliestSlotDeadline = deadline;
+            }
 
             if (slotIndex >= _dataEntries[dataIndex].assignedChecks) {
                 _dataEntries[dataIndex].assignedChecks = slotIndex + 1;
@@ -258,18 +277,13 @@ contract PrivacyFirstContract {
         require(slotForVerifierFound, "Invalid slot");
         require(!_verificationSlots[dataId][slotIndex].completed, "Already completed");
 
-        if (result == VerificationResult.CANNOT_COMPLETE) {
+        if (result == VerificationResult.CANNOT_COMPLETE
+            || _verificationSlots[dataId][slotIndex].deadline < block.timestamp) {
             _removeVerifierFromData(dataId, slotIndex);
             _makeVerifierAbleToOperate(msg.sender);
-            _verifierInformation[msg.sender].bondBalance = _verifierInformation[msg.sender].bondBalance + _config.rewardConfig.dataVerifierBondPerData;
-            return;
-        }
-        //Here the verifier has a valid value for validation
-
-        if (_verificationSlots[dataId][slotIndex].deadline < block.timestamp) { //expired
-            _makeVerifierAbleToOperate(msg.sender);
-            _removeVerifierFromData(dataId, slotIndex);
-            _verifierInformation[msg.sender].bondBalance = _verifierInformation[msg.sender].bondBalance + _config.rewardConfig.dataVerifierBondPerData;
+            unchecked {
+                _verifierInformation[msg.sender].bondBalance = _verifierInformation[msg.sender].bondBalance + _config.rewardConfig.dataVerifierBondPerData;
+            }
             return;
         }
 
@@ -451,18 +465,20 @@ contract PrivacyFirstContract {
     // Private methods - REFERS TO PAYMENTS
     // ------------------------------------
 
-    function _rewardSender(uint256 dataId) internal {
+    function _rewardSender(uint256 dataId) internal virtual  {
         address sender = _dataEntries[dataId].sender;
         uint256 total = _config.rewardConfig.dataSenderPayout + _config.rewardConfig.dataSenderBondPerData;
         require(_remainingSupply >= _config.rewardConfig.dataSenderPayout, "Insufficient supply");
         require(_senderSupplyBond >= _config.rewardConfig.dataSenderBondPerData, "Insufficient bond for senders (should never happen)");
-        _remainingSupply = _remainingSupply - _config.rewardConfig.dataSenderPayout;
-        _senderSupplyBond = _senderSupplyBond - _config.rewardConfig.dataSenderBondPerData;
+        unchecked {
+            _remainingSupply = _remainingSupply - _config.rewardConfig.dataSenderPayout;
+            _senderSupplyBond = _senderSupplyBond - _config.rewardConfig.dataSenderBondPerData;
+        }
         _dstContract.transfer(sender, total);
     }
 
     //Reward verifiers on majority determination
-    function _rewardCorrectVerifiers(uint256 dataId, bool dataWasValid) internal {
+    function _rewardCorrectVerifiers(uint256 dataId, bool dataWasValid) internal virtual {
         uint8 assigned = _dataEntries[dataId].assignedChecks;
         for (uint8 i = 0; i < assigned; i++) {
             VerificationSlot storage slot = _verificationSlots[dataId][i];
@@ -471,15 +487,17 @@ contract PrivacyFirstContract {
                 uint256 total = _config.rewardConfig.dataVerifierPayout + _config.rewardConfig.dataVerifierBondPerData;
                 require(_remainingSupply >= _config.rewardConfig.dataVerifierPayout, "Insufficient supply");
                 require(_verifierSupplyBond >= _config.rewardConfig.dataVerifierBondPerData, "Insufficient bond for verifiers (should never happen)");
+                unchecked {
+                    _remainingSupply = _remainingSupply - _config.rewardConfig.dataVerifierPayout;
+                    _verifierSupplyBond = _verifierSupplyBond - _config.rewardConfig.dataVerifierBondPerData;
+                }
                 _dstContract.transfer(slot.verifier, total);
-                _remainingSupply = _remainingSupply - _config.rewardConfig.dataVerifierPayout;
-                _verifierSupplyBond = _verifierSupplyBond - _config.rewardConfig.dataVerifierBondPerData;
             }
         }
     }
 
     //Reward verifiers on next submissions
-    function _tryRewardVerifier(uint256 dataId, uint8 slotIndex) internal {
+    function _tryRewardVerifier(uint256 dataId, uint8 slotIndex) internal virtual {
         DataStatus status = _dataEntries[dataId].status;
         if (status == DataStatus.PENDING) return;
 
@@ -491,9 +509,11 @@ contract PrivacyFirstContract {
             uint256 total = _config.rewardConfig.dataVerifierPayout + _config.rewardConfig.dataVerifierBondPerData;
             require(_remainingSupply >= _config.rewardConfig.dataVerifierPayout, "Insufficient supply");
             require(_verifierSupplyBond >= _config.rewardConfig.dataVerifierBondPerData, "Insufficient bond for verifiers (should never happen)");
+            unchecked {
+                _remainingSupply = _remainingSupply - _config.rewardConfig.dataVerifierPayout;
+                _verifierSupplyBond = _verifierSupplyBond - _config.rewardConfig.dataVerifierBondPerData;
+            }
             _dstContract.transfer(slot.verifier, total);
-            _remainingSupply = _remainingSupply - _config.rewardConfig.dataVerifierPayout;
-            _verifierSupplyBond = _verifierSupplyBond - _config.rewardConfig.dataVerifierBondPerData;
         }
     }
 
