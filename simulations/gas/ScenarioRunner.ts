@@ -1,12 +1,12 @@
 import {ethers} from "hardhat";
 import cipher from "../../testUtils/cipher";
-import {GasTracker} from "./GasTracker";
+import {GasTracker} from "../shared/GasTracker";
 import {
     buildContractConfig,
     TOTAL_CIDS,
     chunkForCid,
     positionForChunk,
-} from "./SimulationConfig";
+} from "../shared/SimulationConfig";
 import type {ContractTransaction, ContractTransactionResponse} from "ethers";
 import fs from "node:fs";
 

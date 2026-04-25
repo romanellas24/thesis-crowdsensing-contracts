@@ -17,8 +17,8 @@
 import * as fs from "fs";
 import {ReadStream} from "fs";
 import {ethers} from "hardhat";
-import {generateScenarios} from "./SimulationConfig";
-import {CSV_HEADER, RAW_CSV_HEADER} from "./GasTracker";
+import {generateScenarios} from "../shared/SimulationConfig";
+import {CSV_HEADER, RAW_CSV_HEADER} from "../shared/GasTracker";
 import {ScenarioRunner} from "./ScenarioRunner";
 
 
