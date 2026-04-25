@@ -133,7 +133,7 @@ contract PrivacyFirstContract {
     function publishSenderEncryptionKey(address sender, string calldata encryptionKey) public virtual {
         require(_campaignOpen, "Campaign is closed");
         require(msg.sender == _owner, "Not the owner");
-        require(!_senders[msg.sender], "Already a sender");
+        require(!_senders[sender], "Already a sender");
         _senders[sender] = true;
         _senderInformation[sender] = SenderInformation({
             bondBalance: 0,
@@ -148,7 +148,6 @@ contract PrivacyFirstContract {
     function publishEncryptedVerifierPublicKey(string calldata encryptedPubKey) public virtual {
         require(_campaignOpen, "Campaign is closed");
         require(!_verifierEnrolledRequest[msg.sender], "Verifier has already requested to join");
-        require(!_verifiers[msg.sender], "Already a verifier");
         _verifierEnrolledRequest[msg.sender] = true;
         emit VerifierEnrolledEvent(msg.sender, encryptedPubKey);
     }
