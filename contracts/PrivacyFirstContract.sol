@@ -51,7 +51,7 @@ contract PrivacyFirstContract {
     bool private _initialSupplySettled;
     uint internal _remainingSupply;
     uint internal _senderSupplyBond;
-    uint private _verifierSupplyBond;
+    uint internal _verifierSupplyBond;
     // DST INFO / BONDS TO SUPPLY FOR WORK
     uint private _requiredSenderBond;
     uint private _requiredVerifierBond;

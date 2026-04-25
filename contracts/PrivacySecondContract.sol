@@ -12,6 +12,9 @@ contract PrivacySecondContract is PrivacyFirstContract {
     mapping(uint256 => bool) private _awaitingKeyGeneration;
     mapping(uint256 => mapping(uint8 => bool)) private _bundleDelivered;
     mapping(uint256 => uint256) private _computedSenderReward;
+    mapping(address => uint256) private _wrongVotes;
+    mapping(address => uint256) private _rightVotesAccumulator;
+
     uint256 private constant SCALE = 1e18;
 
 
@@ -19,6 +22,7 @@ contract PrivacySecondContract is PrivacyFirstContract {
     event VerifierElectedForData(address indexed verifier, uint256 indexed dataId);
     event VerifierVerificationBundleReady(address indexed verifier, uint256 indexed dataId, bytes bundle);
     event VerifierEnrolled(address indexed verifier);
+    event VerifierKicked(address indexed verifier);
     NovelParameters private _novelParams;
 
     constructor(string memory ownerPubKey, Config memory config, address dstContractAddress, NovelParameters memory novelParams)
@@ -165,6 +169,93 @@ contract PrivacySecondContract is PrivacyFirstContract {
         }
 
         return _config.rewardConfig.dataSenderPayout * ratio / SCALE;
+    }
+
+    function _recordCorrectVote(address verifier) internal {
+        uint256 pardon = _novelParams.pardonWrongVoteAfterRightVotes;
+        if (pardon == 0 || _wrongVotes[verifier] == 0) return;
+
+        _rightVotesAccumulator[verifier]++;
+        if (_rightVotesAccumulator[verifier] >= pardon) {
+            _wrongVotes[verifier]--;
+            _rightVotesAccumulator[verifier] = 0;
+        }
+    }
+
+    function _recordWrongVote(address verifier) internal {
+        _wrongVotes[verifier]++;
+        uint256 kick = _novelParams.kickVerifierAfterWrongVotes;
+        if (kick > 0 && _wrongVotes[verifier] >= kick) {
+            _kickVerifier(verifier);
+            emit VerifierKicked(verifier);
+        }
+    }
+
+    function _kickVerifier(address verifier) internal {
+        uint256 bond = _verifierInformation[verifier].bondBalance;
+        if (bond > 0) {
+            unchecked { _verifierSupplyBond -= bond; }
+            _verifierInformation[verifier].bondBalance = 0;
+            _dstContract.transfer(verifier, bond);
+        }
+        if (_verifierInformation[verifier].isVerifying) {
+            uint256 dataId = _verifierInformation[verifier].verifyingData;
+            (uint8 slotIndex, bool found) = _getVerifierSlotIndex(dataId, verifier);
+            if (found) _removeVerifierFromData(dataId, slotIndex);
+            _makeVerifierAbleToOperate(verifier);
+        }
+        _verifiers[verifier] = false;
+    }
+
+    function _rewardCorrectVerifiers(uint256 dataId, bool dataWasValid) internal override {
+        uint8 assigned = _dataEntries[dataId].assignedChecks;
+        for (uint8 i = 0; i < assigned; i++) {
+            VerificationSlot storage slot = _verificationSlots[dataId][i];
+            if (!slot.completed) continue;
+            if (slot.result == dataWasValid) {
+                _recordCorrectVote(slot.verifier);
+                uint256 total = _config.rewardConfig.dataVerifierPayout + _config.rewardConfig.dataVerifierBondPerData;
+                require(_remainingSupply >= _config.rewardConfig.dataVerifierPayout, "Insufficient supply");
+                require(_verifierSupplyBond >= _config.rewardConfig.dataVerifierBondPerData, "Insufficient bond for verifiers (should never happen)");
+                unchecked {
+                    _remainingSupply -= _config.rewardConfig.dataVerifierPayout;
+                    _verifierSupplyBond -= _config.rewardConfig.dataVerifierBondPerData;
+                }
+                _dstContract.transfer(slot.verifier, total);
+            } else {
+                _recordWrongVote(slot.verifier);
+            }
+        }
+    }
+
+    function _tryRewardVerifier(uint256 dataId, uint8 slotIndex) internal override {
+        DataStatus status = _dataEntries[dataId].status;
+        if (status == DataStatus.PENDING) return;
+
+        VerificationSlot storage slot = _verificationSlots[dataId][slotIndex];
+        bool votedCorrectly = (status == DataStatus.VALID && slot.result)
+            || (status == DataStatus.INVALID && !slot.result);
+
+        if (votedCorrectly) {
+            _recordCorrectVote(slot.verifier);
+            uint256 total = _config.rewardConfig.dataVerifierPayout + _config.rewardConfig.dataVerifierBondPerData;
+            require(_remainingSupply >= _config.rewardConfig.dataVerifierPayout, "Insufficient supply");
+            require(_verifierSupplyBond >= _config.rewardConfig.dataVerifierBondPerData, "Insufficient bond for verifiers (should never happen)");
+            unchecked {
+                _remainingSupply -= _config.rewardConfig.dataVerifierPayout;
+                _verifierSupplyBond -= _config.rewardConfig.dataVerifierBondPerData;
+            }
+            _dstContract.transfer(slot.verifier, total);
+        } else {
+            _recordWrongVote(slot.verifier);
+        }
+    }
+
+    function kickVerifier(address verifier) external {
+        require(msg.sender == _owner, "Not the owner");
+        require(_verifiers[verifier], "Not a verifier");
+        _kickVerifier(verifier);
+        emit VerifierKicked(verifier);
     }
 
     // Integer square root via Babylonian method - O(log n).
