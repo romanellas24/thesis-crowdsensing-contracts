@@ -205,7 +205,7 @@ describe("PrivacySecondContract - Trusted verifiers", () => {
     });
 
     //deliverVerificationBundle
-    describe("deliverVerificationBundle", () => {
+    describe("[PSC] deliverVerificationBundle", () => {
 
         it("[PSC] reverts if called by non-owner", async () => {
             const {sc, sender, verifier} = await loadFixture(electedVerifierFixture);
@@ -249,7 +249,7 @@ describe("PrivacySecondContract - Trusted verifiers", () => {
     });
 
     //submitVerifyResult - bundle gate
-    describe("submitVerifyResult bundle gate", () => {
+    describe("[PSC] submitVerifyResult bundle gate", () => {
 
         it("[PSC] reverts if verifier submits before bundle is delivered", async () => {
             const {sc, verifier} = await loadFixture(electedVerifierFixture);
