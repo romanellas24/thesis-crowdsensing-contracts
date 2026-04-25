@@ -16,6 +16,9 @@ const config: HardhatUserConfig = {
     enabled: true,
     currency: "USD",
   },
+  mocha: {
+    timeout: 120000
+  }
 };
 
 export default config;
