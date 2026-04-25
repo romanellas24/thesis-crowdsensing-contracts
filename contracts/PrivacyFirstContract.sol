@@ -20,29 +20,29 @@ contract PrivacyFirstContract {
     // private state variables
     // ---------------------------
     DataSentTokenContract private immutable _dstContract;
-    address payable private _owner;
+    address payable internal _owner;
     string private _ownerPubKey;
-    Config private _config;
+    Config internal _config;
     //users that have enrolled (waiting for B's encryption key publishing)
     mapping(address => bool) private _senderEnrolledRequest;
-    mapping(address => bool) private _verifierEnrolledRequest;
+    mapping(address => bool) internal _verifierEnrolledRequest;
     //Effective enrolled users
-    mapping(address => bool) private _senders;
-    mapping(address => bool) private _verifiers;
+    mapping(address => bool) internal _senders;
+    mapping(address => bool) internal _verifiers;
     //data containing
-    mapping(uint256 => DataEntry) private _dataEntries;
-    uint256 private _dataCount;
+    mapping(uint256 => DataEntry) internal _dataEntries;
+    uint256 internal _dataCount;
     //Data pending optimization
-    uint256[] private _pendingDataIds;
-    mapping(uint256 => uint256) private _pendingIndex;
+    uint256[] internal _pendingDataIds;
+    mapping(uint256 => uint256) internal _pendingIndex;
 
     //Verifier containing
-    mapping(uint256 => mapping(uint8 => VerificationSlot)) private _verificationSlots;
-    mapping(address => SenderInformation) private _senderInformation;
-    mapping(address => VerifierInformation) private _verifierInformation;
+    mapping(uint256 => mapping(uint8 => VerificationSlot)) internal _verificationSlots;
+    mapping(address => SenderInformation) internal _senderInformation;
+    mapping(address => VerifierInformation) internal _verifierInformation;
 
     //Campaign lifecycle
-    bool private _campaignOpen;
+    bool internal _campaignOpen;
     uint256 private _validDataCount;
     uint256 private _uniqueValidSenders;
     mapping(address => bool) private _senderHasValidData;
@@ -58,7 +58,7 @@ contract PrivacyFirstContract {
     //Chunking
     PackedPosition private _smartContractOrigin;
     PackedPosition private _smartContractEnd;
-    mapping(uint16 => uint) private _dataPerChunkReceived;
+    mapping(uint16 => uint) internal _dataPerChunkReceived;
 
     // ---------------------------
     // Events
@@ -194,8 +194,7 @@ contract PrivacyFirstContract {
         _senderInformation[msg.sender].dataSubmitted++;
         emit DataVerificationRequestedEvent(_dataCount);
 
-        _pendingIndex[_dataCount] = _pendingDataIds.length;
-        _pendingDataIds.push(_dataCount);
+        _addToPending(_dataCount);
 
         _dataCount++;
 
@@ -205,6 +204,11 @@ contract PrivacyFirstContract {
             }
         }
 
+    }
+
+    function _addToPending(uint256 dataId) internal virtual {
+        _pendingIndex[dataId] = _pendingDataIds.length;
+        _pendingDataIds.push(dataId);
     }
 
     function requestAuthToVerify() external virtual {
@@ -256,12 +260,17 @@ contract PrivacyFirstContract {
             _verifierInformation[msg.sender].verifyingData = dataIndex;
             _verifierInformation[msg.sender].isVerifying = true;
 
-            emit VerifierElected(msg.sender, dataIndex, slotIndex, _dataEntries[dataIndex].encryptedCid);
+            _emitVerifierElected(msg.sender, dataIndex, slotIndex);
             return;
         }
 
         revert("No data available for verification");
     }
+
+    function _emitVerifierElected(address verifier, uint256 dataId, uint8 slotIndex) internal virtual {
+        emit VerifierElected(verifier, dataId, slotIndex, _dataEntries[dataId].encryptedCid);
+    }
+
 
     //This function returns the active verification for Verifier.
     function getActiveVerification() public view returns (uint256) {
@@ -270,7 +279,7 @@ contract PrivacyFirstContract {
         return _verifierInformation[msg.sender].verifyingData;
     }
 
-    function submitVerifyResult(VerificationResult result) external virtual {
+    function submitVerifyResult(VerificationResult result) public virtual {
         require(_verifiers[msg.sender], "Only verifiers allowed");
         uint256 dataId = getActiveVerification();
         (uint8 slotIndex, bool slotForVerifierFound) = _getVerifierSlotIndex(dataId, msg.sender);
