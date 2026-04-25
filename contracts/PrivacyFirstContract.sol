@@ -19,7 +19,7 @@ contract PrivacyFirstContract {
     // ---------------------------
     // private state variables
     // ---------------------------
-    DataSentTokenContract private immutable _dstContract;
+    DataSentTokenContract internal immutable _dstContract;
     address payable internal _owner;
     string private _ownerPubKey;
     Config internal _config;
@@ -49,8 +49,8 @@ contract PrivacyFirstContract {
 
     //DST INFO
     bool private _initialSupplySettled;
-    uint private _remainingSupply;
-    uint private _senderSupplyBond;
+    uint internal _remainingSupply;
+    uint internal _senderSupplyBond;
     uint private _verifierSupplyBond;
     // DST INFO / BONDS TO SUPPLY FOR WORK
     uint private _requiredSenderBond;
@@ -126,7 +126,6 @@ contract PrivacyFirstContract {
     function publishEncryptedSenderPublicKey(string calldata encryptedPubKey) public virtual {
         require(_campaignOpen, "Campaign is closed");
         require(!_senderEnrolledRequest[msg.sender], "Sender has already requested to join");
-        require(!_senders[msg.sender], "Already a sender");
         _senderEnrolledRequest[msg.sender] = true;
         emit SenderEnrolledEvent(msg.sender, encryptedPubKey);
     }
@@ -134,6 +133,7 @@ contract PrivacyFirstContract {
     function publishSenderEncryptionKey(address sender, string calldata encryptionKey) public virtual {
         require(_campaignOpen, "Campaign is closed");
         require(msg.sender == _owner, "Not the owner");
+        require(!_senders[msg.sender], "Already a sender");
         _senders[sender] = true;
         _senderInformation[sender] = SenderInformation({
             bondBalance: 0,

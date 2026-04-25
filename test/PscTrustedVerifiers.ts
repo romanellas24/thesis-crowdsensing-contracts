@@ -15,10 +15,19 @@ async function secondContractFixture() {
     const dataSentToken = await DataSentTokenContract.deploy(999999999);
 
     const PrivacySecondContract = await ethers.getContractFactory("PrivacySecondContract");
+
+    const novelParams = {
+        rewardDecayEnabled: false,
+        rewardDecayFactor: 0,
+        kickVerifierAfterWrongVotes: 0,
+        pardonWrongVoteAfterRightVotes: 0,
+    };
+
     const sc = await PrivacySecondContract.deploy(
         ownerKeys.publicKey,
         contractConfiguration,
-        await dataSentToken.getAddress()
+        await dataSentToken.getAddress(),
+        novelParams
     );
 
     await dataSentToken.transfer(sender.address, 100);
@@ -63,7 +72,7 @@ async function electedVerifierFixture() {
     return ctx;
 }
 
-describe("PrivacySecondContract", () => {
+describe("PrivacySecondContract - Trusted verifiers", () => {
 
     // publishVerifierDecryptionKey
     describe("[PSC] publishVerifierDecryptionKey", () => {

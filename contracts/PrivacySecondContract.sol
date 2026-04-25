@@ -2,6 +2,7 @@
 pragma solidity ^0.8.28;
 
 import "./PrivacyFirstContract.sol";
+import "./inc/config/NovelParameters.sol";
 
 using GlobalPositionLibrary for GlobalPosition;
 using PackedPositionLibrary for PackedPosition;
@@ -10,13 +11,20 @@ contract PrivacySecondContract is PrivacyFirstContract {
 
     mapping(uint256 => bool) private _awaitingKeyGeneration;
     mapping(uint256 => mapping(uint8 => bool)) private _bundleDelivered;
+    mapping(uint256 => uint256) private _computedSenderReward;
+    uint256 private constant SCALE = 1e18;
+
 
     event DataRequiredVerificationKeyGeneration(uint256 indexed dataId);
     event VerifierElectedForData(address indexed verifier, uint256 indexed dataId);
     event VerifierVerificationBundleReady(address indexed verifier, uint256 indexed dataId, bytes bundle);
     event VerifierEnrolled(address indexed verifier);
+    NovelParameters private _novelParams;
 
-    constructor(string memory ownerPubKey, Config memory config, address dstContractAddress) PrivacyFirstContract(ownerPubKey, config, dstContractAddress) {}
+    constructor(string memory ownerPubKey, Config memory config, address dstContractAddress, NovelParameters memory novelParams)
+                                                                PrivacyFirstContract(ownerPubKey, config, dstContractAddress) {
+        _novelParams = novelParams;
+    }
 
 
     // Overrides
@@ -60,6 +68,11 @@ contract PrivacySecondContract is PrivacyFirstContract {
             earliestSlotDeadline: 0,
             encryptedCid: encryptedCid
         });
+
+        _computedSenderReward[_dataCount] = _computeDecayedReward(
+            _dataPerChunkReceived[chunkIndex]
+        );
+
         _dataPerChunkReceived[chunkIndex]++;
         _senderInformation[msg.sender].dataSubmitted++;
 
@@ -73,6 +86,19 @@ contract PrivacySecondContract is PrivacyFirstContract {
                 _senderInformation[msg.sender].bondBalance = _senderInformation[msg.sender].bondBalance - _config.rewardConfig.dataSenderBondPerData;
             }
         }
+    }
+
+    function _rewardSender(uint256 dataId) internal override {
+        address sender = _dataEntries[dataId].sender;
+        uint256 decayedPayout = _computedSenderReward[dataId];
+        uint256 total = decayedPayout + _config.rewardConfig.dataSenderBondPerData;
+        require(_remainingSupply >= decayedPayout, "Insufficient supply");
+        require(_senderSupplyBond >= _config.rewardConfig.dataSenderBondPerData, "Insufficient bond for senders (should never happen)");
+        unchecked {
+            _remainingSupply = _remainingSupply - decayedPayout;
+            _senderSupplyBond = _senderSupplyBond - _config.rewardConfig.dataSenderBondPerData;
+        }
+        _dstContract.transfer(sender, total);
     }
 
     // Now the datum enters the pending queue for verification.
@@ -119,6 +145,42 @@ contract PrivacySecondContract is PrivacyFirstContract {
             }
         }
         super.submitVerifyResult(result);
+    }
+
+    // Computes r = dataSenderPayout · (1 - α)^(1/2^k)
+    // α = countBeforeSubmission / maximumDataPerChunk.
+    function _computeDecayedReward(uint256 countBeforeSubmission) internal view returns (uint256) {
+        uint256 maxPerChunk = _config.needs.maximumDataPerChunk;
+
+        if (!_novelParams.rewardDecayEnabled || maxPerChunk == 0)
+            return _config.rewardConfig.dataSenderPayout;
+
+        uint256 remaining = maxPerChunk - countBeforeSubmission;
+        uint256 ratio = remaining * SCALE / maxPerChunk;
+
+        uint256 k = _novelParams.rewardDecayFactor;
+        for (uint256 i = 0; i < k;) {
+            ratio = _sqrt(ratio * SCALE);
+            unchecked { i++; }
+        }
+
+        return _config.rewardConfig.dataSenderPayout * ratio / SCALE;
+    }
+
+    // Integer square root via Babylonian method - O(log n).
+    function _sqrt(uint256 x) internal pure returns (uint256) {
+        if (x == 0) return 0;
+        uint256 z = (x + 1) / 2;
+        uint256 y = x;
+        while (z < y) {
+            y = z;
+            z = (x / z + z) / 2;
+        }
+        return y;
+    }
+
+    function getExpectedSenderReward(uint16 chunkIndex) external view returns (uint256) {
+        return _computeDecayedReward(_dataPerChunkReceived[chunkIndex]);
     }
 
 }
