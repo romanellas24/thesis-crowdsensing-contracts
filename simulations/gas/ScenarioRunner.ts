@@ -162,7 +162,7 @@ export class ScenarioRunner {
         }
     }
 
-    // Enrollment — per-tx gas tracking
+    // Enrollment - per-tx gas tracking
     private async enrollSenders(): Promise<void> {
         for (let i = 0; i < this.senderCount; i++) {
             const wallet = this.senderWallets[i];
@@ -244,7 +244,7 @@ export class ScenarioRunner {
         }
     }
 
-    // Data submission — mock CIDs, random chunk positions
+    // Data submission - mock CIDs, random chunk positions
     private async submitAllCids(): Promise<void> {
         const txs: any[] = [];
         const senderIndices: number[] = [];
@@ -271,7 +271,7 @@ export class ScenarioRunner {
         }
     }
 
-    // Verification — round-robin verifiers, all SUCCESS
+    // Verification - round-robin verifiers, all SUCCESS
     private async verifyAll(): Promise<void> {
         let totalChecks = 0;
         let pendingExists = true;
@@ -297,7 +297,7 @@ export class ScenarioRunner {
                     pendingExists = true;
                 } catch {
                     // "No data available for verification" or "Already verifying"
-                    // This verifier has nothing to do right now — skip
+                    // This verifier has nothing to do right now - skip
                 }
             }
 

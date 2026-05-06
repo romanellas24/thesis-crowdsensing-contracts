@@ -115,7 +115,7 @@ export class VerifierPrivacyFirst {
         await this.payBond();
     }
 
-    // Verification — high-level (callback-driven)
+    // Verification - high-level (callback-driven)
 
     /**
      * One-shot: request a slot -> decrypt CID -> call callback -> submit result.
@@ -130,14 +130,14 @@ export class VerifierPrivacyFirst {
         return {dataId, decryptedCid, result};
     }
 
-    // Verification — low-level (manual control)
+    // Verification - low-level (manual control)
 
     /**
      * Request a verification slot. Parses the `VerifierElected` event from the
      * same transaction receipt to extract the encrypted CID, then decrypts it.
      */
     async requestAuthToVerify(): Promise<{dataId: number; decryptedCid: string; slotIndex: number}> {
-        if (!this.kdec) throw new Error("Not enrolled — Kdec not available");
+        if (!this.kdec) throw new Error("Not enrolled - Kdec not available");
 
         const tx = await this.contract.connect(this.signer).requestAuthToVerify();
         const receipt = await tx.wait();
@@ -159,7 +159,7 @@ export class VerifierPrivacyFirst {
                     break;
                 }
             } catch {
-                // log belongs to a different contract / event — skip
+                // log belongs to a different contract / event - skip
             }
         }
 

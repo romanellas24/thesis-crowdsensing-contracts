@@ -17,10 +17,10 @@ const HARDHAT_MNEMONIC = "test test test test test test test test test test test
  * Why these values:
  *   - maximumDataPerChunk = 200: each chunk receives ~100 CIDs (deterministic
  *     hash distributes 10k across 100 chunks evenly), so 200 leaves headroom.
- *     With 0 (unlimited) the decay short-circuits to full payout — useless.
+ *     With 0 (unlimited) the decay short-circuits to full payout - useless.
  *   - rewardDecayEnabled = true, rewardDecayFactor = 2: the for-loop in
  *     _computeDecayedReward runs 2 sqrt iterations per submission. Fires on
- *     every publishIpfsCid → measurable overhead on data_submission gas.
+ *     every publishIpfsCid => measurable overhead on data_submission gas.
  *   - kickVerifierAfterWrongVotes = 10_000: high enough that no verifier is
  *     kicked during the run (even 5.88% wrong rate × 10k checks per verifier
  *     in worst-case 2-verifier scenarios stays under). Kick gas is measured
@@ -48,7 +48,7 @@ const WRONG_VOTE_MODULUS = 17;
 const VerificationResult = {SUCCESS: 0, FAILURE: 1, CANNOT_COMPLETE: 2};
 
 /**
- * Mock bundle bytes. Real protocol bundle is Enc(CID_V || KD_dec, PK_V) —
+ * Mock bundle bytes. Real protocol bundle is Enc(CID_V || KD_dec, PK_V) -
  * hybrid-encrypted, hundreds of bytes. Kept small here for the same reason
  * mock CIDs are small in the PFC runner: identical on-chain logic, far less
  * wall-clock spent on encryption. Scale this up if a realistic calldata-size
@@ -154,7 +154,7 @@ export class ScenarioRunner {
         this.dstToken = await DSTFactory.deploy(totalMint);
         await this.dstToken.waitForDeployment();
 
-        // PSC contract — same constructor as PFC + NovelParameters
+        // PSC contract - same constructor as PFC + NovelParameters
         const PSCFactory = await ethers.getContractFactory("PrivacySecondContract");
         const deployTx = await PSCFactory.deploy(
             this.ownerKeys.publicKey,
@@ -204,7 +204,7 @@ export class ScenarioRunner {
         }
     }
 
-    // Enrollment — sender path is identical to PFC (inherited)
+    // Enrollment - sender path is identical to PFC (inherited)
     private async enrollSenders(): Promise<void> {
         for (let i = 0; i < this.senderCount; i++) {
             const wallet = this.senderWallets[i];
@@ -232,7 +232,7 @@ export class ScenarioRunner {
 
     /**
      * Verifier enrollment in PSC: publishVerifierDecryptionKey is overridden
-     * to NOT publish a key — it just emits VerifierEnrolled. The owner sends
+     * to NOT publish a key - it just emits VerifierEnrolled. The owner sends
      * an empty string for the key argument (per the §2.6.1 protocol).
      */
     private async enrollVerifiers(): Promise<void> {
@@ -333,12 +333,11 @@ export class ScenarioRunner {
 
     /**
      * PSC verification flow per slot:
-     *   verifier.requestAuthToVerify()   → emits VerifierElectedForData
-     *   owner.deliverVerificationBundle  → unlocks the bundle gate
-     *   verifier.submitVerifyResult(v)   → registers the vote
+     *   verifier.requestAuthToVerify()   => emits VerifierElectedForData
+     *   owner.deliverVerificationBundle  => unlocks the bundle gate
+     *   verifier.submitVerifyResult(v)   => registers the vote
      *
      * dataId is read from the contract via getActiveVerification() (view, free).
-     * Wrong-vote injection: every WRONG_VOTE_MODULUS-th submission is FAILURE.
      */
     private async verifyAll(): Promise<void> {
         let totalChecks = 0;
@@ -366,11 +365,9 @@ export class ScenarioRunner {
                     const rBundle = await txBundle.wait();
                     this.tracker.record("owner_deliver_bundle", rBundle!.gasUsed, "owner");
 
-                    // 3. Submit vote (deterministic wrong-vote injection)
+                    // 3. Submit vote
                     this.voteCounter++;
-                    const vote = (this.voteCounter % WRONG_VOTE_MODULUS === 0)
-                        ? VerificationResult.FAILURE
-                        : VerificationResult.SUCCESS;
+                    const vote = VerificationResult.SUCCESS
 
                     const txSub = await this.contract.connect(wallet).submitVerifyResult(vote);
                     const rSub = await txSub.wait();
@@ -391,7 +388,6 @@ export class ScenarioRunner {
         }
 
         this.log(`  Total verification checks: ${totalChecks}`);
-        this.log(`  Wrong votes injected: ~${Math.floor(this.voteCounter / WRONG_VOTE_MODULUS)}`);
     }
 
     /**

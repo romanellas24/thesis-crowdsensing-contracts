@@ -259,7 +259,7 @@ describe("PrivacySecondContract - verifier penalties", () => {
             await electAll(sc, owner, sender, verifiers, verifierKeys, 2);
             await resolveAllSuccess(sc, verifiers);
 
-            // Now wrongVotes=0. Get 5 more wrong votes — should be kicked only after 5th.
+            // Now wrongVotes=0. Get 5 more wrong votes - should be kicked only after 5th.
             // If pardon didn't work, we'd already be at wrongVotes=1 and need only 4 more.
             // With pardon working, we need 5 wrong votes from scratch.
             // We verify this by checking V2 survives 4 more wrong votes.
@@ -287,7 +287,7 @@ describe("PrivacySecondContract - verifier penalties", () => {
             await electAll(sc, owner, sender, verifiers, verifierKeys, 0);
             await resolveWithV2WrongVote(sc, verifiers);
 
-            // Round 1: V2 votes correctly — pardon disabled, wrongVotes stays at 1
+            // Round 1: V2 votes correctly - pardon disabled, wrongVotes stays at 1
             await electAll(sc, owner, sender, verifiers, verifierKeys, 1);
             await resolveAllSuccess(sc, verifiers);
 

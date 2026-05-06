@@ -76,7 +76,7 @@ async function main() {
         rawStream.end();
 
         await ethers.provider.send("hardhat_reset", []);
-        break; // one scenario per process — bash loop drives the rest
+        break; // one scenario per process - bash loop drives the rest
     }
 
     console.log(`\n=== Run complete ===`);
