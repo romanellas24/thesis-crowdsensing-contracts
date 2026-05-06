@@ -16,9 +16,9 @@ const HARDHAT_MNEMONIC = "test test test test test test test test test test test
  * Runs a single (senders × verifiers) scenario.
  *
  * Design decisions:
- *   - Direct contract calls instead of actor classes → per-function gas
+ *   - Direct contract calls instead of actor classes => per-function gas
  *     granularity matching Table I (sender_pubkey vs owner_send_kenc).
- *   - Mock CID bytes for data submission → same on-chain gas, no hybrid
+ *   - Mock CID bytes for data submission => same on-chain gas, no hybrid
  *     encryption overhead (wall-clock savings for 10k submissions).
  *   - Cipher used only for enrollment (SC validates the key-exchange flow).
  *   - Wallets derived from Hardhat's mnemonic at indices > 20 to avoid

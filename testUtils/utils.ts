@@ -18,6 +18,7 @@ export default {
         return ethers.SigningKey.recoverPublicKey(messageHashBytes, signature);
     },
 
+    // TODO CHIUDERE QUESTI LISTENER
     setupOwnerPrivacy: async (owner: HardhatEthersSigner, contract: PrivacyFirstContract, ownerKeys: { publicKey: string, privateKey: string }) => {
         const encryptionKeys = cipher.generateEncryptionKeys();
         // @ts-ignore
@@ -42,7 +43,10 @@ export default {
             contract.connect(sender).on("SenderEncryptionKeyReady", (senderSc: string, encryptionKey: string, event: any) => {
                 if(senderSc !== sender.address)
                     return;
-                try {resolve({sender: senderSc, encryptionKey});} catch (err) {reject(err);}
+                try {
+                    contract.connect(sender).off("SenderEncryptionKeyReady");
+                    resolve({sender: senderSc, encryptionKey});
+                } catch (err) {reject(err);}
             });
         });
         const senderKeys = cipher.generateKeyPair();
@@ -71,6 +75,7 @@ export default {
                 if (verifierSc !== verifier.address)
                     return;
                 try {
+                    contract.connect(verifier).off("VerifierDecryptionKeyReady");
                     resolve({verifier: verifierSc, decryptionKey});
                 } catch (err) {
                     reject(err);

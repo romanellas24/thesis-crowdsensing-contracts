@@ -103,7 +103,7 @@ async function electAll(
     }
 }
 
-// V0 and V1 vote SUCCESS (majority → VALID), V2 votes FAILURE (wrong).
+// V0 and V1 vote SUCCESS (majority => VALID), V2 votes FAILURE (wrong).
 async function resolveWithV2WrongVote(sc: any, verifiers: any[]) {
     await sc.connect(verifiers[0]).submitVerifyResult(VerificationResult.SUCCESS);
     await sc.connect(verifiers[1]).submitVerifyResult(VerificationResult.SUCCESS);
@@ -240,8 +240,8 @@ describe("PrivacySecondContract - verifier penalties", () => {
     describe("pardon mechanism", () => {
 
         // pardonFixture: kickAfterWrongVotes=5, pardonWrongVoteAfterRightVotes=2
-        // V2 gets 1 wrong vote, then 2 correct votes → wrong count goes back to 0
-        // then gets another wrong vote → still at 1, not kicked (threshold is 5)
+        // V2 gets 1 wrong vote, then 2 correct votes => wrong count goes back to 0
+        // then gets another wrong vote => still at 1, not kicked (threshold is 5)
         // without pardon it would be at 2 after 2 wrong votes
 
         it("[PSC] decrements wrong vote counter after n correct votes", async () => {
@@ -255,7 +255,7 @@ describe("PrivacySecondContract - verifier penalties", () => {
             await electAll(sc, owner, sender, verifiers, verifierKeys, 1);
             await resolveAllSuccess(sc, verifiers);
 
-            // Round 2: all vote correctly for V2 (accumulator=2 >= pardon=2 → wrongVotes=0)
+            // Round 2: all vote correctly for V2 (accumulator=2 >= pardon=2 => wrongVotes=0)
             await electAll(sc, owner, sender, verifiers, verifierKeys, 2);
             await resolveAllSuccess(sc, verifiers);
 
@@ -271,7 +271,7 @@ describe("PrivacySecondContract - verifier penalties", () => {
                 }
             }
 
-            // 5th wrong vote after pardon → kicked
+            // 5th wrong vote after pardon => kicked
             await electAll(sc, owner, sender, verifiers, verifierKeys, 7);
             await expect(resolveWithV2WrongVote(sc, verifiers))
                 .to.emit(sc, "VerifierKicked")
@@ -291,7 +291,7 @@ describe("PrivacySecondContract - verifier penalties", () => {
             await electAll(sc, owner, sender, verifiers, verifierKeys, 1);
             await resolveAllSuccess(sc, verifiers);
 
-            // Round 2: V2 votes wrong again (wrongVotes=2 → kick)
+            // Round 2: V2 votes wrong again (wrongVotes=2 => kick)
             await electAll(sc, owner, sender, verifiers, verifierKeys, 2);
             await expect(resolveWithV2WrongVote(sc, verifiers))
                 .to.emit(sc, "VerifierKicked")

@@ -22,7 +22,7 @@ describe("[BOND MECHANISM] PrivacyFirstContract", function () {
         // Enroll sender manually WITHOUT paying bond
         const waitForEncryptionKey = new Promise<{ sender: string; encryptionKey: string }>((resolve, reject) => {
             // @ts-ignore
-            privacyContract.connect(sender1).on("SenderEncryptionKeyReady", (senderSc: string, encryptionKey: string) => {
+            privacyContract.connect(sender1).once("SenderEncryptionKeyReady", (senderSc: string, encryptionKey: string) => {
                 if (senderSc !== sender1.address) return;
                 try { resolve({sender: senderSc, encryptionKey}); } catch (err) { reject(err); }
             });
@@ -46,7 +46,7 @@ describe("[BOND MECHANISM] PrivacyFirstContract", function () {
         // Enroll verifier manually WITHOUT paying bond
         const waitForDecryptionKey = new Promise<{ verifier: string; decryptionKey: string }>((resolve, reject) => {
             // @ts-ignore
-            privacyContract.connect(verifier1).on("VerifierDecryptionKeyReady", (verifierSc: string, decryptionKey: string) => {
+            privacyContract.connect(verifier1).once("VerifierDecryptionKeyReady", (verifierSc: string, decryptionKey: string) => {
                 if (verifierSc !== verifier1.address) return;
                 try { resolve({verifier: verifierSc, decryptionKey}); } catch (err) { reject(err); }
             });

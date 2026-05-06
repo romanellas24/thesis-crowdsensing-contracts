@@ -119,7 +119,7 @@ describe("[ACTOR CLASSES] PrivacyFirstContract", function () {
         const senderKeys = cipher.generateKeyPair();
         const waitForKey = new Promise<string>((resolve) => {
             // @ts-ignore
-            privacyContract.on("SenderEncryptionKeyReady", (addr: string, key: string) => {
+            privacyContract.once("SenderEncryptionKeyReady", (addr: string, key: string) => {
                 if (addr === sender1.address) resolve(key);
             });
         });
@@ -127,7 +127,7 @@ describe("[ACTOR CLASSES] PrivacyFirstContract", function () {
         // Listen for SenderEnrolledEvent manually
         const waitForEnroll = new Promise<{sender: string; key: string}>((resolve) => {
             // @ts-ignore
-            privacyContract.on("SenderEnrolledEvent", (sender: string, key: string) => {
+            privacyContract.once("SenderEnrolledEvent", (sender: string, key: string) => {
                 resolve({sender, key});
             });
         });
@@ -231,7 +231,7 @@ describe("[ACTOR CLASSES] PrivacyFirstContract", function () {
     });
 
     // ==================================================================
-    // FULL ROUND-TRIP: encryption → verification → majority → reward
+    // FULL ROUND-TRIP: encryption => verification => majority => reward
     // ==================================================================
 
     it("[E2E]: Encrypted CID round-trips through majority verification", async function () {
@@ -289,7 +289,7 @@ describe("[ACTOR CLASSES] PrivacyFirstContract", function () {
         await s1.publishData(cid1, validPosition);
         await s2.publishData(cid2, validPosition);
 
-        // Enroll a verifier and verify first data → should decrypt to cid1
+        // Enroll a verifier and verify first data => should decrypt to cid1
         const v = new VerifierPrivacyFirst(
             verifier1, privacyContract, dataSentToken, cipher,
             () => VerificationResult.SUCCESS,

@@ -70,7 +70,7 @@ export class SenderPrivacyFirst {
             const handler = (sender: string, encryptionKey: string) => {
                 if (sender !== this.signer.address) return;
                 // Cleanup to avoid leaks
-                this.contract.removeListener("SenderEncryptionKeyReady", handler);
+                this.contract.off("SenderEncryptionKeyReady", handler);
                 resolve(encryptionKey);
             };
             this.contract.on("SenderEncryptionKeyReady", handler);
