@@ -99,7 +99,6 @@ describe("[INIT PHASE - SENDER] PrivacyFirstContract", function () {
         const senderPublicKey = cipher.decryptStringHybrid(ownerKeys.privateKey, bundle)
         expect(senderPublicKey).to.equal(senderKeys.publicKey);
         const encryptionKeyHidden = JSON.stringify(cipher.encryptStringHybrid(senderPublicKey, encryptionKeys.encryptionKey));
-        privacyContract.connect(owner).publishSenderEncryptionKey(result.sender, encryptionKeyHidden);
         const waitForEncryptionKey = new Promise<{ sender: string; encryptionKey: string }>((resolve, reject) => {
             // @ts-ignore
             privacyContract.connect(sender1).once("SenderEncryptionKeyReady", (sender: string, encryptionKey: string) => {
@@ -110,6 +109,7 @@ describe("[INIT PHASE - SENDER] PrivacyFirstContract", function () {
                 }
             });
         });
+        privacyContract.connect(owner).publishSenderEncryptionKey(result.sender, encryptionKeyHidden);
         const encryptionKeyResult = await waitForEncryptionKey;
         expect(encryptionKeyResult.sender).to.equal(result.sender).to.equal(sender1.address);
     });
