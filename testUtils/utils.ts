@@ -18,22 +18,30 @@ export default {
         return ethers.SigningKey.recoverPublicKey(messageHashBytes, signature);
     },
 
+    // TODO CHIUDERE QUESTI LISTENER
     setupOwnerPrivacy: async (owner: HardhatEthersSigner, contract: PrivacyFirstContract, ownerKeys: { publicKey: string, privateKey: string }) => {
         const encryptionKeys = cipher.generateEncryptionKeys();
         // @ts-ignore
-        contract.connect(owner).on("SenderEnrolledEvent", (sender: string, key: string, event: any) => {
+        contract.connect(owner).on("SenderEnrolledEvent", async (sender: string, key: string, event: any) => {
             const bundle = JSON.parse(key);
             const senderPublicKey = cipher.decryptStringHybrid(ownerKeys.privateKey, bundle)
             const encryptionKeyHidden = JSON.stringify(cipher.encryptStringHybrid(senderPublicKey, encryptionKeys.encryptionKey));
-            contract.connect(owner).publishSenderEncryptionKey(sender, encryptionKeyHidden);
+            await contract.connect(owner).publishSenderEncryptionKey(sender, encryptionKeyHidden);
         });
         // @ts-ignore
-        contract.connect(owner).on("VerifierEnrolledEvent", (verifier: string, key: string, event: any) => {
+        contract.connect(owner).on("VerifierEnrolledEvent", async (verifier: string, key: string, event: any) => {
             const bundle = JSON.parse(key);
             const verifierPublicKey = cipher.decryptStringHybrid(ownerKeys.privateKey, bundle);
             const decryptionKeyHidden = JSON.stringify(cipher.encryptStringHybrid(verifierPublicKey, encryptionKeys.decryptionKey));
-            contract.connect(owner).publishVerifierDecryptionKey(verifier, decryptionKeyHidden);
+            await contract.connect(owner).publishVerifierDecryptionKey(verifier, decryptionKeyHidden);
         });
+    },
+
+    dismantlingOwnerPrivacy: async (owner: HardhatEthersSigner, contract: PrivacyFirstContract) => {
+        // @ts-ignore
+        await contract.connect(owner).off("SenderEnrolledEvent");
+        // @ts-ignore
+        await contract.connect(owner).on("VerifierEnrolledEvent");
     },
 
     setupSenderPrivacy: async (sender: HardhatEthersSigner, contract: PrivacyFirstContract) => {
@@ -42,7 +50,10 @@ export default {
             contract.connect(sender).on("SenderEncryptionKeyReady", (senderSc: string, encryptionKey: string, event: any) => {
                 if(senderSc !== sender.address)
                     return;
-                try {resolve({sender: senderSc, encryptionKey});} catch (err) {reject(err);}
+                try {
+                    contract.connect(sender).off("SenderEncryptionKeyReady");
+                    resolve({sender: senderSc, encryptionKey});
+                } catch (err) {reject(err);}
             });
         });
         const senderKeys = cipher.generateKeyPair();
@@ -71,6 +82,7 @@ export default {
                 if (verifierSc !== verifier.address)
                     return;
                 try {
+                    contract.connect(verifier).off("VerifierDecryptionKeyReady");
                     resolve({verifier: verifierSc, decryptionKey});
                 } catch (err) {
                     reject(err);

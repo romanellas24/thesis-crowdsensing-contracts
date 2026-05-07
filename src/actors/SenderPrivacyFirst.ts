@@ -70,7 +70,7 @@ export class SenderPrivacyFirst {
             const handler = (sender: string, encryptionKey: string) => {
                 if (sender !== this.signer.address) return;
                 // Cleanup to avoid leaks
-                this.contract.removeListener("SenderEncryptionKeyReady", handler);
+                this.contract.off("SenderEncryptionKeyReady", handler);
                 resolve(encryptionKey);
             };
             this.contract.on("SenderEncryptionKeyReady", handler);
@@ -122,7 +122,7 @@ export class SenderPrivacyFirst {
      * @param position   - GlobalPosition struct matching the Solidity definition
      */
     async publishData(plainCid: string, position: any) {
-        if (!this.kenc) throw new Error("Not enrolled — Kenc not available");
+        if (!this.kenc) throw new Error("Not enrolled - Kenc not available");
 
         const encrypted = this.cipher.encryptStringHybrid(this.kenc, plainCid);
         const cidBytes = toUtf8Bytes(JSON.stringify(encrypted));

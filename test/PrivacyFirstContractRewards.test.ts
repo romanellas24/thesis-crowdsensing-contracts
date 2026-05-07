@@ -30,6 +30,7 @@ describe("[REWARDS] PrivacyFirstContract", function () {
 
         const cid = ethers.toUtf8Bytes("QmEncryptedCid_1");
         await privacyContract.connect(sender1).publishIpfsCid(cid, validPosition);
+        await utils.dismantlingOwnerPrivacy(owner, privacyContract); //Potrebbe sollevare errori.
 
         return {privacyContract, dataSentToken};
     }

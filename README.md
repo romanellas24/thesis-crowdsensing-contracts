@@ -41,4 +41,4 @@ npx hardhat test
 - hardhat-gas-reporter
 
 ## License
-CC BY 4.0 — you can reuse anything, just give credit.
+CC BY 4.0 - you can reuse anything, just give credit.

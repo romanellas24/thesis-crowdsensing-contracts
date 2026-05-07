@@ -1,12 +1,12 @@
 import {ethers} from "hardhat";
 import cipher from "../../testUtils/cipher";
-import {GasTracker} from "./GasTracker";
+import {GasTracker} from "../shared/GasTracker";
 import {
     buildContractConfig,
     TOTAL_CIDS,
     chunkForCid,
     positionForChunk,
-} from "./SimulationConfig";
+} from "../shared/SimulationConfig";
 import type {ContractTransaction, ContractTransactionResponse} from "ethers";
 import fs from "node:fs";
 
@@ -16,9 +16,9 @@ const HARDHAT_MNEMONIC = "test test test test test test test test test test test
  * Runs a single (senders × verifiers) scenario.
  *
  * Design decisions:
- *   - Direct contract calls instead of actor classes → per-function gas
+ *   - Direct contract calls instead of actor classes => per-function gas
  *     granularity matching Table I (sender_pubkey vs owner_send_kenc).
- *   - Mock CID bytes for data submission → same on-chain gas, no hybrid
+ *   - Mock CID bytes for data submission => same on-chain gas, no hybrid
  *     encryption overhead (wall-clock savings for 10k submissions).
  *   - Cipher used only for enrollment (SC validates the key-exchange flow).
  *   - Wallets derived from Hardhat's mnemonic at indices > 20 to avoid
@@ -162,7 +162,7 @@ export class ScenarioRunner {
         }
     }
 
-    // Enrollment — per-tx gas tracking
+    // Enrollment - per-tx gas tracking
     private async enrollSenders(): Promise<void> {
         for (let i = 0; i < this.senderCount; i++) {
             const wallet = this.senderWallets[i];
@@ -244,7 +244,7 @@ export class ScenarioRunner {
         }
     }
 
-    // Data submission — mock CIDs, random chunk positions
+    // Data submission - mock CIDs, random chunk positions
     private async submitAllCids(): Promise<void> {
         const txs: any[] = [];
         const senderIndices: number[] = [];
@@ -271,7 +271,7 @@ export class ScenarioRunner {
         }
     }
 
-    // Verification — round-robin verifiers, all SUCCESS
+    // Verification - round-robin verifiers, all SUCCESS
     private async verifyAll(): Promise<void> {
         let totalChecks = 0;
         let pendingExists = true;
@@ -297,7 +297,7 @@ export class ScenarioRunner {
                     pendingExists = true;
                 } catch {
                     // "No data available for verification" or "Already verifying"
-                    // This verifier has nothing to do right now — skip
+                    // This verifier has nothing to do right now - skip
                 }
             }
 

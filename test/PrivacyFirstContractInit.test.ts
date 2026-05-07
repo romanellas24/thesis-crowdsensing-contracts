@@ -99,7 +99,6 @@ describe("[INIT PHASE - SENDER] PrivacyFirstContract", function () {
         const senderPublicKey = cipher.decryptStringHybrid(ownerKeys.privateKey, bundle)
         expect(senderPublicKey).to.equal(senderKeys.publicKey);
         const encryptionKeyHidden = JSON.stringify(cipher.encryptStringHybrid(senderPublicKey, encryptionKeys.encryptionKey));
-        privacyContract.connect(owner).publishSenderEncryptionKey(result.sender, encryptionKeyHidden);
         const waitForEncryptionKey = new Promise<{ sender: string; encryptionKey: string }>((resolve, reject) => {
             // @ts-ignore
             privacyContract.connect(sender1).once("SenderEncryptionKeyReady", (sender: string, encryptionKey: string) => {
@@ -110,6 +109,7 @@ describe("[INIT PHASE - SENDER] PrivacyFirstContract", function () {
                 }
             });
         });
+        privacyContract.connect(owner).publishSenderEncryptionKey(result.sender, encryptionKeyHidden);
         const encryptionKeyResult = await waitForEncryptionKey;
         expect(encryptionKeyResult.sender).to.equal(result.sender).to.equal(sender1.address);
     });
@@ -162,6 +162,7 @@ describe("[INIT PHASE - SENDER] PrivacyFirstContract", function () {
         promises.push(utils.setupSenderPrivacy(sender2, privacyContract));
         promises.push(utils.setupSenderPrivacy(sender3, privacyContract));
         await Promise.all(promises);
+        await utils.dismantlingOwnerPrivacy(owner, privacyContract);
     });
 
     it("[SENDER]: Sender1 duplicate the enrollment request", async function () {
@@ -171,6 +172,7 @@ describe("[INIT PHASE - SENDER] PrivacyFirstContract", function () {
         expect(
             utils.setupSenderPrivacy(sender1, privacyContract)
         ).to.be.revertedWith("Sender has already requested to join'")
+        await utils.dismantlingOwnerPrivacy(owner, privacyContract);
     });
 
 });

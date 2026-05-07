@@ -106,8 +106,10 @@ describe("[SPATIAL CHUNKING] PrivacyFirstContract", function () {
         const {privacyContract} = await loadFixture(contractDeployment);
         await utils.setupOwnerPrivacy(owner, privacyContract, ownerKeys);
         await utils.setupSenderPrivacy(sender1, privacyContract);
+        await utils.dismantlingOwnerPrivacy(owner, privacyContract);
 
         const cid = ethers.toUtf8Bytes("QmEncryptedCid_1");
+
         await expect(
             privacyContract.connect(sender1).publishIpfsCid(cid, validPosition)
         ).to.emit(privacyContract, "DataVerificationRequestedEvent").withArgs(0);
@@ -117,6 +119,7 @@ describe("[SPATIAL CHUNKING] PrivacyFirstContract", function () {
         const {privacyContract} = await loadFixture(contractDeployment);
         await utils.setupOwnerPrivacy(owner, privacyContract, ownerKeys);
         await utils.setupSenderPrivacy(sender1, privacyContract);
+        await utils.dismantlingOwnerPrivacy(owner, privacyContract);
 
         const cid = ethers.toUtf8Bytes("QmEncryptedCid_1");
         await expect(
@@ -128,6 +131,7 @@ describe("[SPATIAL CHUNKING] PrivacyFirstContract", function () {
         const {privacyContract} = await loadFixture(contractDeployment);
         await utils.setupOwnerPrivacy(owner, privacyContract, ownerKeys);
         await utils.setupSenderPrivacy(sender1, privacyContract);
+        await utils.dismantlingOwnerPrivacy(owner, privacyContract);
 
         const cid = ethers.toUtf8Bytes("QmEncryptedCid_1");
         await expect(
@@ -139,7 +143,7 @@ describe("[SPATIAL CHUNKING] PrivacyFirstContract", function () {
         const {privacyContract} = await loadFixture(contractDeployment);
         await utils.setupOwnerPrivacy(owner, privacyContract, ownerKeys);
         await utils.setupSenderPrivacy(sender1, privacyContract);
-
+        await utils.dismantlingOwnerPrivacy(owner, privacyContract);
         const cid = ethers.toUtf8Bytes("QmEncryptedCid_1");
         await expect(
             privacyContract.connect(sender1).publishIpfsCid(cid, southwestPosition)
@@ -150,7 +154,7 @@ describe("[SPATIAL CHUNKING] PrivacyFirstContract", function () {
         const {privacyContract} = await loadFixture(contractDeployment);
         await utils.setupOwnerPrivacy(owner, privacyContract, ownerKeys);
         await utils.setupSenderPrivacy(sender1, privacyContract);
-
+        await utils.dismantlingOwnerPrivacy(owner, privacyContract);
         const cid = ethers.toUtf8Bytes("QmEncryptedCid_1");
         await expect(
             privacyContract.connect(sender1).publishIpfsCid(cid, northeastPosition)
@@ -168,7 +172,7 @@ describe("[SPATIAL CHUNKING] PrivacyFirstContract", function () {
             longitudeInteger: 11,
             longitudeDecimal: 0,
         };
-
+        await utils.dismantlingOwnerPrivacy(owner, privacyContract);
         const cid = ethers.toUtf8Bytes("QmEncryptedCid_1");
         await expect(
             privacyContract.connect(sender1).publishIpfsCid(cid, invalidPosition)
@@ -254,6 +258,7 @@ describe("[SPATIAL CHUNKING] PrivacyFirstContract", function () {
         const {privacyContract} = await chunkLimitDeployment();
         await utils.setupOwnerPrivacy(owner, privacyContract, ownerKeys);
         await utils.setupSenderPrivacy(sender1, privacyContract);
+        await utils.dismantlingOwnerPrivacy(owner, privacyContract);
 
         const cid1 = ethers.toUtf8Bytes("QmEncryptedCid_1");
         await privacyContract.connect(sender1).publishIpfsCid(cid1, validPosition);
@@ -268,6 +273,7 @@ describe("[SPATIAL CHUNKING] PrivacyFirstContract", function () {
         const {privacyContract} = await chunkLimitDeployment();
         await utils.setupOwnerPrivacy(owner, privacyContract, ownerKeys);
         await utils.setupSenderPrivacy(sender1, privacyContract);
+        await utils.dismantlingOwnerPrivacy(owner, privacyContract);
 
         const cid1 = ethers.toUtf8Bytes("QmEncryptedCid_1");
         await privacyContract.connect(sender1).publishIpfsCid(cid1, validPosition);
@@ -282,6 +288,7 @@ describe("[SPATIAL CHUNKING] PrivacyFirstContract", function () {
         const {privacyContract} = await unlimitedChunkDeployment();
         await utils.setupOwnerPrivacy(owner, privacyContract, ownerKeys);
         await utils.setupSenderPrivacy(sender1, privacyContract);
+        await utils.dismantlingOwnerPrivacy(owner, privacyContract);
 
         for (let i = 0; i < 5; i++) {
             const cid = ethers.toUtf8Bytes(`QmEncryptedCid_${i}`);

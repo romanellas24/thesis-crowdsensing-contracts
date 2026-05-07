@@ -123,14 +123,14 @@ contract PrivacyFirstContract {
         return _ownerPubKey;
     }
 
-    function publishEncryptedSenderPublicKey(string calldata encryptedPubKey) public virtual {
+    function publishEncryptedSenderPublicKey(string calldata encryptedPubKey) public {
         require(_campaignOpen, "Campaign is closed");
         require(!_senderEnrolledRequest[msg.sender], "Sender has already requested to join");
         _senderEnrolledRequest[msg.sender] = true;
         emit SenderEnrolledEvent(msg.sender, encryptedPubKey);
     }
 
-    function publishSenderEncryptionKey(address sender, string calldata encryptionKey) public virtual {
+    function publishSenderEncryptionKey(address sender, string calldata encryptionKey) public {
         require(_campaignOpen, "Campaign is closed");
         require(msg.sender == _owner, "Not the owner");
         require(!_senders[sender], "Already a sender");
@@ -145,7 +145,7 @@ contract PrivacyFirstContract {
         emit SenderEncryptionKeyReady(sender, encryptionKey);
     }
 
-    function publishEncryptedVerifierPublicKey(string calldata encryptedPubKey) public virtual {
+    function publishEncryptedVerifierPublicKey(string calldata encryptedPubKey) public {
         require(_campaignOpen, "Campaign is closed");
         require(!_verifierEnrolledRequest[msg.sender], "Verifier has already requested to join");
         _verifierEnrolledRequest[msg.sender] = true;
@@ -205,12 +205,12 @@ contract PrivacyFirstContract {
 
     }
 
-    function _addToPending(uint256 dataId) internal virtual {
+    function _addToPending(uint256 dataId) internal {
         _pendingIndex[dataId] = _pendingDataIds.length;
         _pendingDataIds.push(dataId);
     }
 
-    function requestAuthToVerify() external virtual {
+    function requestAuthToVerify() external {
         require(_campaignOpen, "Campaign is closed");
         require(_verifiers[msg.sender], "Only verifiers allowed");
         require(!_verifierInformation[msg.sender].isVerifying, "Already verifying data");

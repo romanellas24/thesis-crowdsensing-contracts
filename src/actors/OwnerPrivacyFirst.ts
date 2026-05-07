@@ -1,4 +1,6 @@
 import {CipherProvider, EncryptionKeyPair, KeyPair} from "./CipherProvider";
+import {ownerKeys} from "../../testUtils/constants";
+import cipher from "../../testUtils/cipher";
 
 /**
  * SDK wrapper for the campaign initiator (B).
@@ -20,7 +22,7 @@ export class OwnerPrivacyFirst {
     private readonly keys: KeyPair;
     private readonly cipher: CipherProvider;
     private readonly encryptionKeys: EncryptionKeyPair;
-    private listening = false;
+    private _listening = false;
 
     constructor(
         signer: any,
@@ -54,8 +56,8 @@ export class OwnerPrivacyFirst {
      * Enrollment responses are sent automatically.
      */
     startListening(): void {
-        if (this.listening) return;
-        this.listening = true;
+        if (this._listening) return;
+        this._listening = true;
 
         this.contract.on(
             "SenderEnrolledEvent",
@@ -73,10 +75,10 @@ export class OwnerPrivacyFirst {
     }
 
     stopListening(): void {
-        if (!this.listening) return;
-        this.contract.removeAllListeners("SenderEnrolledEvent");
-        this.contract.removeAllListeners("VerifierEnrolledEvent");
-        this.listening = false;
+        if (!this._listening) return;
+        this.contract.off("SenderEnrolledEvent");
+        this.contract.off("VerifierEnrolledEvent");
+        this._listening = false;
     }
 
     // Manual enrollment handlers
@@ -129,4 +131,9 @@ export class OwnerPrivacyFirst {
             .getCampaignData();
         return {cids, statuses, chunks};
     }
+
+    get listening(): boolean {
+        return this._listening;
+    }
+
 }

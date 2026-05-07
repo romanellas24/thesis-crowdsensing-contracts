@@ -22,7 +22,7 @@ describe("[BOND MECHANISM] PrivacyFirstContract", function () {
         // Enroll sender manually WITHOUT paying bond
         const waitForEncryptionKey = new Promise<{ sender: string; encryptionKey: string }>((resolve, reject) => {
             // @ts-ignore
-            privacyContract.connect(sender1).on("SenderEncryptionKeyReady", (senderSc: string, encryptionKey: string) => {
+            privacyContract.connect(sender1).once("SenderEncryptionKeyReady", (senderSc: string, encryptionKey: string) => {
                 if (senderSc !== sender1.address) return;
                 try { resolve({sender: senderSc, encryptionKey}); } catch (err) { reject(err); }
             });
@@ -33,8 +33,7 @@ describe("[BOND MECHANISM] PrivacyFirstContract", function () {
         const encryptedPubKey = cipher.encryptStringHybrid(ownerPubKey, senderKeys.publicKey);
         await privacyContract.connect(sender1).publishEncryptedSenderPublicKey(JSON.stringify(encryptedPubKey));
         await waitForEncryptionKey;
-        // sender1 is enrolled but has NOT paid bond
-
+        await utils.dismantlingOwnerPrivacy(owner, privacyContract);
         return {privacyContract, dataSentToken};
     }
 
@@ -46,7 +45,7 @@ describe("[BOND MECHANISM] PrivacyFirstContract", function () {
         // Enroll verifier manually WITHOUT paying bond
         const waitForDecryptionKey = new Promise<{ verifier: string; decryptionKey: string }>((resolve, reject) => {
             // @ts-ignore
-            privacyContract.connect(verifier1).on("VerifierDecryptionKeyReady", (verifierSc: string, decryptionKey: string) => {
+            privacyContract.connect(verifier1).once("VerifierDecryptionKeyReady", (verifierSc: string, decryptionKey: string) => {
                 if (verifierSc !== verifier1.address) return;
                 try { resolve({verifier: verifierSc, decryptionKey}); } catch (err) { reject(err); }
             });
@@ -60,6 +59,7 @@ describe("[BOND MECHANISM] PrivacyFirstContract", function () {
 
         const cid = ethers.toUtf8Bytes("QmEncryptedCid_1");
         await privacyContract.connect(sender1).publishIpfsCid(cid, validPosition);
+        await utils.dismantlingOwnerPrivacy(owner, privacyContract);
 
         return {privacyContract, dataSentToken};
     }
@@ -75,6 +75,7 @@ describe("[BOND MECHANISM] PrivacyFirstContract", function () {
 
         const cid = ethers.toUtf8Bytes("QmEncryptedCid_1");
         await privacyContract.connect(sender1).publishIpfsCid(cid, validPosition);
+        await utils.dismantlingOwnerPrivacy(owner, privacyContract);
 
         return {privacyContract, dataSentToken};
     }
