@@ -162,6 +162,7 @@ describe("[INIT PHASE - SENDER] PrivacyFirstContract", function () {
         promises.push(utils.setupSenderPrivacy(sender2, privacyContract));
         promises.push(utils.setupSenderPrivacy(sender3, privacyContract));
         await Promise.all(promises);
+        await utils.dismantlingOwnerPrivacy(owner, privacyContract);
     });
 
     it("[SENDER]: Sender1 duplicate the enrollment request", async function () {
@@ -171,6 +172,7 @@ describe("[INIT PHASE - SENDER] PrivacyFirstContract", function () {
         expect(
             utils.setupSenderPrivacy(sender1, privacyContract)
         ).to.be.revertedWith("Sender has already requested to join'")
+        await utils.dismantlingOwnerPrivacy(owner, privacyContract);
     });
 
 });

@@ -31,6 +31,7 @@ describe("[DATA SUBMISSION] PrivacyFirstContract", function () {
             privacyContract.connect(sender1).publishIpfsCid(cid3, validPosition)
         ).to.emit(privacyContract, "DataVerificationRequestedEvent")
             .withArgs(2);
+        await utils.dismantlingOwnerPrivacy(owner, privacyContract);
     });
 
     async function readyForVerification() {
@@ -44,7 +45,7 @@ describe("[DATA SUBMISSION] PrivacyFirstContract", function () {
 
         const cid = ethers.toUtf8Bytes("QmEncryptedCid_1");
         await privacyContract.connect(sender1).publishIpfsCid(cid, validPosition);
-
+        await utils.dismantlingOwnerPrivacy(owner, privacyContract);
         return {privacyContract};
     }
 
@@ -239,6 +240,7 @@ describe("[DATA SUBMISSION] PrivacyFirstContract", function () {
             const cid = ethers.toUtf8Bytes(`QmUnlimited_${i}`);
             await privacyContract.connect(sender1).publishIpfsCid(cid, validPosition);
         }
+        await utils.dismantlingOwnerPrivacy(owner, privacyContract);
     });
 
     it("[OWNER]: getCampaignData returns all submitted data", async function () {
@@ -258,6 +260,7 @@ describe("[DATA SUBMISSION] PrivacyFirstContract", function () {
         expect(statuses[0]).to.equal(0); // PENDING
         expect(statuses[1]).to.equal(0);
         expect(statuses[2]).to.equal(0);
+        await utils.dismantlingOwnerPrivacy(owner, privacyContract);
     });
 
     it("[OWNER]: getCampaignData only callable by owner", async function () {
@@ -268,6 +271,7 @@ describe("[DATA SUBMISSION] PrivacyFirstContract", function () {
         await expect(
             privacyContract.connect(sender1).getCampaignData()
         ).to.be.revertedWith("Only owner");
+        await utils.dismantlingOwnerPrivacy(owner, privacyContract);
     });
 
     it("[OWNER]: getCampaignData shows correct status after verification", async function () {
@@ -293,6 +297,7 @@ describe("[DATA SUBMISSION] PrivacyFirstContract", function () {
 
         const [cids, statuses, chunks] = await privacyContract.connect(owner).getCampaignData();
         expect(statuses[0]).to.equal(1); // VALID
+        await utils.dismantlingOwnerPrivacy(owner, privacyContract);
     });
 
 });

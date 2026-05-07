@@ -37,6 +37,13 @@ export default {
         });
     },
 
+    dismantlingOwnerPrivacy: async (owner: HardhatEthersSigner, contract: PrivacyFirstContract) => {
+        // @ts-ignore
+        await contract.connect(owner).off("SenderEnrolledEvent");
+        // @ts-ignore
+        await contract.connect(owner).on("VerifierEnrolledEvent");
+    },
+
     setupSenderPrivacy: async (sender: HardhatEthersSigner, contract: PrivacyFirstContract) => {
         const waitForEncryptionKey = new Promise<{ sender: string; encryptionKey: string }>((resolve, reject) => {
             // @ts-ignore

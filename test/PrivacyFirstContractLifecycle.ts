@@ -38,7 +38,7 @@ describe("[CAMPAIGN LIFECYCLE] PrivacyFirstContract", function () {
 
         const cid = ethers.toUtf8Bytes("QmEncryptedCid_1");
         await privacyContract.connect(sender1).publishIpfsCid(cid, validPosition);
-
+        await utils.dismantlingOwnerPrivacy(owner, privacyContract);
         return {privacyContract, dataSentToken};
     }
 
@@ -52,6 +52,7 @@ describe("[CAMPAIGN LIFECYCLE] PrivacyFirstContract", function () {
         await privacyContract.connect(sender1).publishIpfsCid(cid, validPosition);
 
         await utils.setupVerifierPrivacy(verifier4, privacyContract);
+        await utils.dismantlingOwnerPrivacy(owner, privacyContract);
 
         await privacyContract.connect(verifier4).requestAuthToVerify();
         await expect(
@@ -93,6 +94,7 @@ describe("[CAMPAIGN LIFECYCLE] PrivacyFirstContract", function () {
         await utils.setupVerifierPrivacy(verifier2, privacyContract);
         await utils.setupVerifierPrivacy(verifier3, privacyContract);
         await utils.setupVerifierPrivacy(verifier4, privacyContract);
+        await utils.dismantlingOwnerPrivacy(owner, privacyContract);
 
         const cid = ethers.toUtf8Bytes("QmEncryptedCid_1");
         await privacyContract.connect(sender1).publishIpfsCid(cid, validPosition);

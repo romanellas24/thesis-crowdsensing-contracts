@@ -33,8 +33,7 @@ describe("[BOND MECHANISM] PrivacyFirstContract", function () {
         const encryptedPubKey = cipher.encryptStringHybrid(ownerPubKey, senderKeys.publicKey);
         await privacyContract.connect(sender1).publishEncryptedSenderPublicKey(JSON.stringify(encryptedPubKey));
         await waitForEncryptionKey;
-        // sender1 is enrolled but has NOT paid bond
-
+        await utils.dismantlingOwnerPrivacy(owner, privacyContract);
         return {privacyContract, dataSentToken};
     }
 
@@ -60,6 +59,7 @@ describe("[BOND MECHANISM] PrivacyFirstContract", function () {
 
         const cid = ethers.toUtf8Bytes("QmEncryptedCid_1");
         await privacyContract.connect(sender1).publishIpfsCid(cid, validPosition);
+        await utils.dismantlingOwnerPrivacy(owner, privacyContract);
 
         return {privacyContract, dataSentToken};
     }
@@ -75,6 +75,7 @@ describe("[BOND MECHANISM] PrivacyFirstContract", function () {
 
         const cid = ethers.toUtf8Bytes("QmEncryptedCid_1");
         await privacyContract.connect(sender1).publishIpfsCid(cid, validPosition);
+        await utils.dismantlingOwnerPrivacy(owner, privacyContract);
 
         return {privacyContract, dataSentToken};
     }
