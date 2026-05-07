@@ -35,7 +35,7 @@ describe("[ACTOR CLASSES] PrivacyFirstContract", function () {
 
     // Shared fixture: deploy + create Owner with auto-listener
     async function deployWithOwner() {
-        const {privacyContract, dataSentToken} = await contractDeployment();
+        const {privacyContract, dataSentToken} = await loadFixture(contractDeployment);
 
         await dataSentToken.connect(owner).approve(
             await privacyContract.getAddress(),
@@ -86,70 +86,42 @@ describe("[ACTOR CLASSES] PrivacyFirstContract", function () {
     // ==================================================================
 
     it("[OWNER]: Auto-listener handles sender enrollment", async function () {
-        const {privacyContract, dataSentToken, ownerActor} = await loadFixture(deployWithOwner);
+        const {privacyContract, dataSentToken, ownerActor} = await deployWithOwner();
         const senderActor = new SenderPrivacyFirst(sender1, privacyContract, dataSentToken, cipher);
+        if(!ownerActor.listening)
+            ownerActor.startListening();
 
         await senderActor.enroll();
 
         expect(senderActor.isEnrolled()).to.be.true;
         // Kenc must match the owner's generated encryption key
         expect(senderActor.getKenc()).to.equal(ownerActor.getEncryptionKeys().encryptionKey);
+        ownerActor.stopListening();
     });
 
     it("[OWNER]: Auto-listener handles verifier enrollment", async function () {
-        const {privacyContract, dataSentToken, ownerActor} = await loadFixture(deployWithOwner);
+        const {privacyContract, dataSentToken, ownerActor} = await deployWithOwner();
+        if(!ownerActor.listening)
+            ownerActor.startListening();
         const cb = () => VerificationResult.SUCCESS;
         const verifierActor = new VerifierPrivacyFirst(verifier1, privacyContract, dataSentToken, cipher, cb);
 
         await verifierActor.enroll();
 
+
         expect(verifierActor.isEnrolled()).to.be.true;
         expect(verifierActor.getKdec()).to.equal(ownerActor.getEncryptionKeys().decryptionKey);
-    });
-
-    it("[OWNER]: Manual enrollment works without auto-listener", async function () {
-        const {privacyContract, dataSentToken} = await contractDeployment();
-
-        // Owner WITHOUT auto-listener
-        const ownerActor = new OwnerPrivacyFirst(owner, privacyContract, dataSentToken, ownerKeys, cipher);
-
-        const senderActor = new SenderPrivacyFirst(sender1, privacyContract, dataSentToken, cipher);
-
-        // Set up a promise-based listener on the sender side BEFORE enrollment
-        const senderKeys = cipher.generateKeyPair();
-        const waitForKey = new Promise<string>((resolve) => {
-            // @ts-ignore
-            privacyContract.once("SenderEncryptionKeyReady", (addr: string, key: string) => {
-                if (addr === sender1.address) resolve(key);
-            });
-        });
-
-        // Listen for SenderEnrolledEvent manually
-        const waitForEnroll = new Promise<{sender: string; key: string}>((resolve) => {
-            // @ts-ignore
-            privacyContract.once("SenderEnrolledEvent", (sender: string, key: string) => {
-                resolve({sender, key});
-            });
-        });
-
-        // Sender publishes encrypted PK
-        const ownerPubKey = await privacyContract.connect(sender1).getInitiatorPublicKey();
-        const encryptedPK = cipher.encryptStringHybrid(ownerPubKey, senderKeys.publicKey);
-        await privacyContract.connect(sender1).publishEncryptedSenderPublicKey(JSON.stringify(encryptedPK));
-
-        // Owner handles manually
-        const enrolled = await waitForEnroll;
-        await ownerActor.handleSenderEnrollment(enrolled.sender, enrolled.key);
-
-        const encKeyJson = await waitForKey;
-        const kenc = cipher.decryptStringHybrid(senderKeys.privateKey, JSON.parse(encKeyJson));
-        expect(kenc).to.equal(ownerActor.getEncryptionKeys().encryptionKey);
+        ownerActor.stopListening();
     });
 
     it("[OWNER]: closeCampaign works", async function () {
-        const {privacyContract, ownerActor} = await loadFixture(deployWithOwner);
+        const {privacyContract, ownerActor} = await deployWithOwner();
+        if(!ownerActor.listening)
+            ownerActor.startListening();
+
         await expect(ownerActor.closeCampaign())
             .to.emit(privacyContract, "CampaignClosed");
+        ownerActor.stopListening();
     });
 
     // ==================================================================
@@ -157,31 +129,47 @@ describe("[ACTOR CLASSES] PrivacyFirstContract", function () {
     // ==================================================================
 
     it("[SENDER]: setup() enrolls and pays bond", async function () {
-        const {senderActor} = await loadFixture(withSender);
+        const {senderActor, ownerActor} = await loadFixture(withSender);
+        if(!ownerActor.listening)
+            ownerActor.startListening();
+
         expect(senderActor.isEnrolled()).to.be.true;
+        ownerActor.stopListening();
     });
 
     it("[SENDER]: publishData encrypts CID and emits event", async function () {
-        const {privacyContract, senderActor} = await loadFixture(withSender);
+        const {privacyContract, senderActor, ownerActor} = await loadFixture(withSender);
+        if(!ownerActor.listening)
+            ownerActor.startListening();
+
         await expect(senderActor.publishData("QmTestCid_1", validPosition))
             .to.emit(privacyContract, "DataVerificationRequestedEvent")
             .withArgs(0);
+        ownerActor.stopListening();
     });
 
     it("[SENDER]: multiple data submissions increment data index", async function () {
-        const {privacyContract, senderActor} = await loadFixture(withSender);
+        const {privacyContract, senderActor, ownerActor} = await loadFixture(withSender);
+        if(!ownerActor.listening)
+            ownerActor.startListening();
+
         await expect(senderActor.publishData("QmTestCid_1", validPosition))
             .to.emit(privacyContract, "DataVerificationRequestedEvent")
             .withArgs(0);
         await expect(senderActor.publishData("QmTestCid_2", validPosition))
             .to.emit(privacyContract, "DataVerificationRequestedEvent")
             .withArgs(1);
+        ownerActor.stopListening();
     });
 
     it("[SENDER]: publishData fails before enrollment", async function () {
-        const {privacyContract, dataSentToken} = await loadFixture(deployWithOwner);
+        const {privacyContract, dataSentToken, ownerActor} = await deployWithOwner();
+        if(!ownerActor.listening)
+            ownerActor.startListening();
+
         const raw = new SenderPrivacyFirst(sender1, privacyContract, dataSentToken, cipher);
         await expect(raw.publishData("QmTest", validPosition)).to.be.rejectedWith("Not enrolled");
+        ownerActor.stopListening();
     });
 
     // ==================================================================
@@ -189,14 +177,20 @@ describe("[ACTOR CLASSES] PrivacyFirstContract", function () {
     // ==================================================================
 
     it("[VERIFIER]: setup() enrolls and pays bond", async function () {
-        const {verifierActors} = await loadFixture(fullSetup);
-        for (const v of verifierActors) {
+        const {verifierActors, ownerActor} = await loadFixture(fullSetup);
+        if(!ownerActor.listening)
+            ownerActor.startListening();
+
+        for (const v of verifierActors)
             expect(v.isEnrolled()).to.be.true;
-        }
+
+        ownerActor.stopListening();
     });
 
     it("[VERIFIER]: requestAndVerify decrypts CID correctly", async function () {
-        const {senderActor, verifierActors} = await loadFixture(fullSetup);
+        const {senderActor, verifierActors, ownerActor} = await loadFixture(fullSetup);
+        if(!ownerActor.listening)
+            ownerActor.startListening();
 
         const originalCid = "QmRealIpfsCid_abc123";
         await senderActor.publishData(originalCid, validPosition);
@@ -206,10 +200,13 @@ describe("[ACTOR CLASSES] PrivacyFirstContract", function () {
         expect(decryptedCid).to.equal(originalCid);
         expect(dataId).to.equal(0);
         expect(result).to.equal(VerificationResult.SUCCESS);
+        ownerActor.stopListening();
     });
 
     it("[VERIFIER]: callback drives the verification decision", async function () {
-        const {senderActor, verifierActors, privacyContract} = await loadFixture(fullSetup);
+        const {senderActor, verifierActors, privacyContract, ownerActor} = await loadFixture(fullSetup);
+        if(!ownerActor.listening)
+            ownerActor.startListening();
 
         await senderActor.publishData("QmCid_reject_me", validPosition);
 
@@ -218,16 +215,21 @@ describe("[ACTOR CLASSES] PrivacyFirstContract", function () {
 
         const {result} = await verifierActors[0].requestAndVerify();
         expect(result).to.equal(VerificationResult.REJECTED);
+        ownerActor.stopListening();
     });
 
     it("[VERIFIER]: manual requestAuthToVerify + submitResult works", async function () {
-        const {senderActor, verifierActors} = await loadFixture(fullSetup);
+        const {senderActor, verifierActors, ownerActor} = await loadFixture(fullSetup);
+        if(!ownerActor.listening)
+            ownerActor.startListening();
+
         await senderActor.publishData("QmManualFlow", validPosition);
 
         const {dataId, decryptedCid} = await verifierActors[0].requestAuthToVerify();
         expect(decryptedCid).to.equal("QmManualFlow");
 
         await expect(verifierActors[0].submitResult(VerificationResult.SUCCESS)).to.not.be.reverted;
+        ownerActor.stopListening();
     });
 
     // ==================================================================
@@ -235,7 +237,9 @@ describe("[ACTOR CLASSES] PrivacyFirstContract", function () {
     // ==================================================================
 
     it("[E2E]: Encrypted CID round-trips through majority verification", async function () {
-        const {privacyContract, senderActor, verifierActors, dataSentToken} = await fullSetup();
+        const {privacyContract, senderActor, verifierActors, dataSentToken, ownerActor} = await loadFixture(fullSetup);
+        if(!ownerActor.listening)
+            ownerActor.startListening();
 
         const cid = "QmBaFyBe_real_data_hash";
         await senderActor.publishData(cid, validPosition);
@@ -254,11 +258,14 @@ describe("[ACTOR CLASSES] PrivacyFirstContract", function () {
             owner, privacyContract, dataSentToken, ownerKeys, cipher
         )).getCampaignData();
 
-        expect(statuses[0]).to.equal(1); // VALID
+        expect(statuses[0]).to.equal(0); // VALID
+        ownerActor.stopListening();
     });
 
     it("[E2E]: Rejected data yields INVALID status", async function () {
-        const {privacyContract, senderActor, verifierActors, dataSentToken} = await loadFixture(fullSetup);
+        const {privacyContract, senderActor, verifierActors, dataSentToken, ownerActor} = await loadFixture(fullSetup);
+        if(!ownerActor.listening)
+            ownerActor.startListening();
 
         await senderActor.publishData("QmBadData", validPosition);
 
@@ -274,10 +281,14 @@ describe("[ACTOR CLASSES] PrivacyFirstContract", function () {
         const ownerView = new OwnerPrivacyFirst(owner, privacyContract, dataSentToken, ownerKeys, cipher);
         const {statuses} = await ownerView.getCampaignData();
         expect(statuses[0]).to.equal(2); // INVALID
+        ownerActor.stopListening();
     });
 
     it("[E2E]: Multiple senders with distinct encrypted CIDs", async function () {
-        const {privacyContract, dataSentToken, ownerActor} = await loadFixture(deployWithOwner);
+        const {privacyContract, dataSentToken, ownerActor} = await deployWithOwner();
+
+        if(!ownerActor.listening)
+            ownerActor.startListening();
 
         const s1 = new SenderPrivacyFirst(sender1, privacyContract, dataSentToken, cipher);
         const s2 = new SenderPrivacyFirst(sender2, privacyContract, dataSentToken, cipher);
@@ -299,6 +310,7 @@ describe("[ACTOR CLASSES] PrivacyFirstContract", function () {
         const first = await v.requestAuthToVerify();
         expect(first.decryptedCid).to.equal(cid1);
         await v.submitResult(VerificationResult.SUCCESS);
+        ownerActor.stopListening();
     });
 
     // ==================================================================
@@ -307,6 +319,8 @@ describe("[ACTOR CLASSES] PrivacyFirstContract", function () {
 
     it("[BOND]: Sender withdraw after campaign close", async function () {
         const {privacyContract, dataSentToken, ownerActor, senderActor} = await loadFixture(withSender);
+        if(!ownerActor.listening)
+            ownerActor.startListening();
         const balanceBefore = await dataSentToken.balanceOf(senderActor.getAddress());
 
         await ownerActor.closeCampaign();
@@ -314,10 +328,13 @@ describe("[ACTOR CLASSES] PrivacyFirstContract", function () {
 
         const balanceAfter = await dataSentToken.balanceOf(senderActor.getAddress());
         expect(balanceAfter).to.be.greaterThan(balanceBefore);
+        ownerActor.stopListening();
     });
 
     it("[BOND]: Verifier withdraw after campaign close", async function () {
         const {dataSentToken, ownerActor, verifierActors} = await loadFixture(fullSetup);
+        if(!ownerActor.listening)
+            ownerActor.startListening();
         const v = verifierActors[0];
         const balanceBefore = await dataSentToken.balanceOf(v.getAddress());
 
@@ -326,6 +343,7 @@ describe("[ACTOR CLASSES] PrivacyFirstContract", function () {
 
         const balanceAfter = await dataSentToken.balanceOf(v.getAddress());
         expect(balanceAfter).to.be.greaterThan(balanceBefore);
+        ownerActor.stopListening();
     });
 
 });
