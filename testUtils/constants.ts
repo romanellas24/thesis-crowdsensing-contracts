@@ -12,7 +12,7 @@ export const ownerKeys = cipher.generateKeyPair();
 
 export const contractConfiguration = {
     needs: {
-        dataNeeded: 3,
+        dataNeeded: 5,
         checksRequired: 7,
         verifierCooldown: 2,
         verificationTimeout: 300,

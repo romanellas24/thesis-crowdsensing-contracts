@@ -1,6 +1,4 @@
 import {CipherProvider, EncryptionKeyPair, KeyPair} from "./CipherProvider";
-import {ownerKeys} from "../../testUtils/constants";
-import cipher from "../../testUtils/cipher";
 
 /**
  * SDK wrapper for the campaign initiator (B).
@@ -16,13 +14,14 @@ import cipher from "../../testUtils/cipher";
  */
 export class OwnerPrivacyFirst {
 
-    private readonly signer: any;
-    private readonly contract: any;
-    private readonly dstToken: any;
-    private readonly keys: KeyPair;
-    private readonly cipher: CipherProvider;
-    private readonly encryptionKeys: EncryptionKeyPair;
-    private _listening = false;
+    // protected: child classes (OwnerPrivacySecond) need direct access
+    protected readonly signer: any;
+    protected readonly contract: any;
+    protected readonly dstToken: any;
+    protected readonly keys: KeyPair;
+    protected readonly cipher: CipherProvider;
+    protected readonly encryptionKeys: EncryptionKeyPair;
+    protected _listening = false;
 
     constructor(
         signer: any,
@@ -54,6 +53,10 @@ export class OwnerPrivacyFirst {
     /**
      * Subscribe to SenderEnrolledEvent and VerifierEnrolledEvent.
      * Enrollment responses are sent automatically.
+     *
+     * NOTE: OwnerPrivacySecond fully overrides this method because
+     * PrivacySecondContract emits a different event for verifier enrollment
+     * (VerifierEnrolled vs VerifierEnrolledEvent) with a different signature.
      */
     startListening(): void {
         if (this._listening) return;
@@ -134,6 +137,59 @@ export class OwnerPrivacyFirst {
 
     get listening(): boolean {
         return this._listening;
+    }
+
+    // -----------------------------------------------------------------------
+    // Test / orchestration helpers
+    // -----------------------------------------------------------------------
+
+    /**
+     * Resolves when at least `senderCount` senders and `verifierCount` verifiers
+     * have completed enrollment - i.e., B has published their respective keys and
+     * the SC has emitted the corresponding confirmation events.
+     *
+     * Listens to SenderEncryptionKeyReady and the verifier confirmation event
+     * returned by _verifierConfirmedEvent() (overridable for PrivacySecond).
+     *
+     * Safe to call alongside startListening(): these listeners are independent
+     * and scoped to this promise - they are removed as soon as counts are met.
+     */
+    waitForEnrollments(senderCount: number, verifierCount: number): Promise<void> {
+        if (senderCount === 0 && verifierCount === 0) return Promise.resolve();
+
+        return new Promise<void>((resolve) => {
+            let s = 0;
+            let v = 0;
+
+            const cleanup = () => {
+                if (senderCount > 0)   this.contract.removeListener("SenderEncryptionKeyReady", sHandler);
+                if (verifierCount > 0) this.contract.removeListener(this._verifierConfirmedEvent(), vHandler);
+            };
+
+            const check = () => {
+                if (s >= senderCount && v >= verifierCount) {
+                    cleanup();
+                    resolve();
+                }
+            };
+
+            // Arrow functions: each call increments the respective counter then checks.
+            // Using named references so removeListener can target them precisely.
+            const sHandler = () => { s++; check(); };
+            const vHandler = () => { v++; check(); };
+
+            if (senderCount > 0)   this.contract.on("SenderEncryptionKeyReady", sHandler);
+            if (verifierCount > 0) this.contract.on(this._verifierConfirmedEvent(), vHandler);
+        });
+    }
+
+    /**
+     * Name of the on-chain event that confirms verifier enrollment is complete.
+     * PrivacyFirst: VerifierDecryptionKeyReady (carries the encrypted Kdec).
+     * PrivacySecond: overridden to return "VerifierEnrolled" (no key arg).
+     */
+    protected _verifierConfirmedEvent(): string {
+        return "VerifierDecryptionKeyReady";
     }
 
 }

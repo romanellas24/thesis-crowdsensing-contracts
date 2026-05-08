@@ -18,7 +18,7 @@ import {
     SenderPrivacyFirst,
     VerifierPrivacyFirst,
     VerificationResult,
-} from "../src/actors";
+} from "../src/actors/PFC";
 
 /**
  * These tests exercise the actor SDK classes end-to-end.
