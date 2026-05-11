@@ -18,7 +18,7 @@ import {
     OwnerPrivacyFirst,
     VerificationResult,
 } from "../src/actors/PFC";
-import LoopStopReason from "../src/actors/PFC/LoopStopReason";
+import LoopStopReason from "../src/sdk/utils/LoopStopReason";
 import {OwnerPrivacySecond} from "../src/actors/PSC/OwnerPrivacySecond";
 import {SenderPrivacySecond} from "../src/actors/PSC/SenderPrivacySecond";
 import {VerifierPrivacySecond} from "../src/actors/PSC/VerifierPrivacySecond";

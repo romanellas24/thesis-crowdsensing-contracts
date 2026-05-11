@@ -63,14 +63,14 @@ contract PrivacyFirstContract {
     // ---------------------------
     // Events
     // ---------------------------
-    event SenderEnrolledEvent(address indexed sender, string key);
-    event SenderEncryptionKeyReady(address sender, string encryptionKey);
-    event VerifierEnrolledEvent(address indexed verifier, string key);
-    event VerifierDecryptionKeyReady(address sender, string decryptionKey);
-    event DataVerificationRequestedEvent(uint256); //The emitted value is the index of data that is ready for verification (because it is already uploaded).
-    event VerifierElected(address indexed verifier, uint256 indexed dataId, uint8 slotIndex, bytes encryptedCid);
-    event DataVerified(uint256 indexed dataId, bool result);
-    event CampaignClosed();
+    event SenderEnrolledEvent(address indexed sender, string key); //emitted by sender, listened by owner
+    event SenderEncryptionKeyReady(address sender, string encryptionKey); //emitted by owner, listened by sender
+    event VerifierEnrolledEvent(address indexed verifier, string key); //emitted by verifier, listened by owner
+    event VerifierDecryptionKeyReady(address sender, string decryptionKey); //emitted by owner, listened by  verifier
+    event DataVerificationRequestedEvent(uint256); //emitted by sender, listened by verifier
+    event VerifierElected(address indexed verifier, uint256 indexed dataId, uint8 slotIndex, bytes encryptedCid); //emitted by verifier, listened by verifier (if not reverted)
+    event DataVerified(uint256 indexed dataId, bool result); //throwed by verifier, listened by owner (or not, not important)
+    event CampaignClosed(); //Throwed by owner, listened by all(?)
 
     // ---------------------------
     // Constructor

@@ -1,4 +1,4 @@
-import {CipherProvider, EncryptionKeyPair, KeyPair} from "./CipherProvider";
+import {CipherProvider, EncryptionKeyPair, KeyPair} from "../../sdk/utils/CipherProvider";
 
 /**
  * SDK wrapper for the campaign initiator (B).

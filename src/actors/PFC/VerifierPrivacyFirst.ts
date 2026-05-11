@@ -1,6 +1,6 @@
 import {toUtf8String} from "ethers";
-import {CipherProvider, KeyPair, VerificationResult, VerifyCallback} from "./CipherProvider";
-import LoopStopReason from "./LoopStopReason";
+import {CipherProvider, KeyPair, VerificationResult, VerifyCallback} from "../../sdk/utils/CipherProvider";
+import LoopStopReason from "../../sdk/utils/LoopStopReason";
 import {HardhatEthersSigner} from "@nomicfoundation/hardhat-ethers/signers";
 
 // ---------------------------------------------------------------------------

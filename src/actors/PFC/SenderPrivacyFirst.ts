@@ -1,5 +1,5 @@
 import {toUtf8Bytes} from "ethers";
-import {CipherProvider, KeyPair} from "./CipherProvider";
+import {CipherProvider, KeyPair} from "../../sdk/utils/CipherProvider";
 
 /**
  * SDK wrapper for a data contributor (A).

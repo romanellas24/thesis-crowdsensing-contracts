@@ -16,7 +16,7 @@ import {
     verifier3,
 } from "../testUtils/constants";
 import {OwnerPrivacyFirst, SenderPrivacyFirst, VerificationResult, VerifierPrivacyFirst,} from "../src/actors/PFC";
-import LoopStopReason from "../src/actors/PFC/LoopStopReason";
+import LoopStopReason from "../src/sdk/utils/LoopStopReason";
 
 // ---------------------------------------------------------------------------
 // Custom configs for edge-case loop tests
