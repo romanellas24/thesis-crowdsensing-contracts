@@ -380,6 +380,8 @@ describe("[ACTOR CLASSES] PrivacySecondContract", function () {
 
             ownerActor.stopListening();
         });
+    });
+
 
     // ========================================================================
     // [E2E]
