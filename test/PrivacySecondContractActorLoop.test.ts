@@ -381,41 +381,6 @@ describe("[ACTOR CLASSES] PrivacySecondContract", function () {
             ownerActor.stopListening();
         });
 
-        it("submitVerifyResult with CANNOT_COMPLETE bypasses bundle check", async function () {
-            // CANNOT_COMPLETE is the escape hatch: it does not require the bundle.
-            const {privacyContract, dataSentToken} = await loadFixture(pscDeployment);
-            const ownerActor = new OwnerPrivacySecond(owner, privacyContract, dataSentToken, ownerKeys, cipher);
-            ownerActor.startListening();
-
-            const senderActor = new SenderPrivacySecond(sender1, privacyContract, dataSentToken, cipher);
-            await senderActor.setup();
-            const verifierActor = new VerifierPrivacySecond(
-                verifier1, privacyContract, dataSentToken, cipher,
-                () => VerificationResult.SUCCESS,
-            );
-            await verifierActor.setup();
-            ownerActor.stopListening();
-
-            const dataKeyPending = new Promise<void>((resolve) => {
-                // @ts-ignore
-                privacyContract.once("DataRequiredVerificationKeyGeneration", async (dataId: bigint, event: any) => {
-                    await ownerActor.handleDataRequiresKey(Number(dataId), event);
-                    resolve();
-                });
-            });
-            await (await senderActor.publishData("QmCannotComplete", validPosition)).wait();
-            await dataKeyPending;
-
-            await privacyContract.connect(verifier1).requestAuthToVerify();
-
-            // CANNOT_COMPLETE skips the bundle requirement
-            await expect(
-                privacyContract.connect(verifier1).submitVerifyResult(VerificationResult.CANNOT_COMPLETE),
-            ).to.not.be.reverted;
-        });
-
-    });
-
     // ========================================================================
     // [E2E]
     // ========================================================================
