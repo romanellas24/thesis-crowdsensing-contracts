@@ -1,6 +1,7 @@
 import {toUtf8String} from "ethers";
 import {CipherProvider, KeyPair, VerificationResult, VerifyCallback} from "./CipherProvider";
 import LoopStopReason from "./LoopStopReason";
+import {HardhatEthersSigner} from "@nomicfoundation/hardhat-ethers/signers";
 
 // ---------------------------------------------------------------------------
 // Loop types - exported so callers can discriminate the stop reason
@@ -27,7 +28,7 @@ export interface VerifyLoopHandle {
 export class VerifierPrivacyFirst {
 
     // protected: child classes (VerifierPrivacySecond) need direct access
-    protected readonly signer: any;
+    protected readonly signer: HardhatEthersSigner;
     protected readonly contract: any;
     protected readonly dstToken: any;
     protected readonly cipher: CipherProvider;
@@ -158,6 +159,7 @@ export class VerifierPrivacyFirst {
         let dataId = -1;
         let slotIndex = -1;
         let encryptedCidHex = "";
+        let verifier: string;
 
         for (const log of receipt.logs) {
             try {
@@ -166,6 +168,12 @@ export class VerifierPrivacyFirst {
                     data: log.data,
                 });
                 if (parsed?.name === "VerifierElected") {
+
+                    verifier = parsed.args[0];
+
+                    if(verifier !== this.signer.address)
+                        continue;
+
                     dataId = Number(parsed.args[1]);
                     slotIndex = Number(parsed.args[2]);
                     encryptedCidHex = parsed.args[3];

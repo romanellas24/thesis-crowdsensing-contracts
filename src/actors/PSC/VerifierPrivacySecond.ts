@@ -1,9 +1,9 @@
 import {toUtf8String} from "ethers";
-import {CipherProvider, VerifierPrivacyFirst, KeyPair, VerificationResult, VerifyCallback} from "../PFC";
+import {CipherProvider, VerifierPrivacyFirst, VerifyCallback} from "../PFC";
 /**
  * SDK wrapper for a data verifier (V) operating on PrivacySecondContract.
  *
- * Extends VerifierPrivacyFirst with the modified flow introduced by §2.6.1
+ * Extends VerifierPrivacyFirst with the modified flow introduced by 2.6.1
  * (trusted verifier). Key differences from the base class:
  *
  *  - enroll():            waits for VerifierEnrolled (no Kdec yet).
@@ -31,7 +31,7 @@ export class VerifierPrivacySecond extends VerifierPrivacyFirst {
     }
 
     // -----------------------------------------------------------------------
-    // Enrollment override - §2.6.1
+    // Enrollment override - 2.6.1
     // -----------------------------------------------------------------------
 
     /**
@@ -70,17 +70,17 @@ export class VerifierPrivacySecond extends VerifierPrivacyFirst {
     }
 
     // -----------------------------------------------------------------------
-    // Verification override - §2.6.1
+    // Verification override - 2.6.1
     // -----------------------------------------------------------------------
 
     /**
      * Request a verification slot, then wait for the Owner to deliver the bundle.
      *
      * Flow:
-     *  1. Send requestAuthToVerify tx → SC emits VerifierElectedForData(verifier, dataId)
+     *  1. Send requestAuthToVerify tx => SC emits VerifierElectedForData(verifier, dataId)
      *     (no CID in this event, unlike PrivacyFirst's VerifierElected)
      *  2. Owner detects the event, builds Enc({encryptedCid, kdec}, PKV), calls
-     *     deliverVerificationBundle → SC emits VerifierVerificationBundleReady
+     *     deliverVerificationBundle => SC emits VerifierVerificationBundleReady
      *  3. This method awaits that event, decrypts with SKV, then decrypts the CID
      *
      * slotIndex is not included in VerifierElectedForData and is returned as -1.
@@ -90,10 +90,15 @@ export class VerifierPrivacySecond extends VerifierPrivacyFirst {
     override async requestAuthToVerify(): Promise<{dataId: number; decryptedCid: string; slotIndex: number}> {
         if (!this.keys) throw new Error("Not enrolled");
 
+        const decryptPromise = this._waitForBundleAndDecrypt();
         const tx = await this.contract.connect(this.signer).requestAuthToVerify();
         const receipt = await tx.wait();
 
         let dataId = -1;
+        let verifier = '';
+
+
+
         for (const log of receipt.logs) {
             try {
                 const parsed = this.contract.interface.parseLog({
@@ -101,6 +106,11 @@ export class VerifierPrivacySecond extends VerifierPrivacyFirst {
                     data: log.data,
                 });
                 if (parsed?.name === "VerifierElectedForData") {
+                    verifier = parsed.args[0];
+
+                    if(verifier !== this.signer.address)
+                        continue;
+
                     dataId = Number(parsed.args[1]);
                     break;
                 }
@@ -109,10 +119,11 @@ export class VerifierPrivacySecond extends VerifierPrivacyFirst {
             }
         }
 
-        if (dataId === -1) throw new Error("VerifierElectedForData event not found in receipt");
+        if (dataId === -1) throw new Error("VerifierElected event not found in receipt");
 
-        const decryptedCid = await this._waitForBundleAndDecrypt(dataId);
-        return {dataId, decryptedCid, slotIndex: -1};
+        const results = await decryptPromise;
+
+        return {dataId, decryptedCid: results, slotIndex: -1};
     }
 
     /**
@@ -127,7 +138,7 @@ export class VerifierPrivacySecond extends VerifierPrivacyFirst {
     }
 
     // -----------------------------------------------------------------------
-    // Kick hook - §2.6.3
+    // Kick hook - 2.6.3
     // -----------------------------------------------------------------------
 
     /**
@@ -151,15 +162,14 @@ export class VerifierPrivacySecond extends VerifierPrivacyFirst {
 
     /**
      * Wait for VerifierVerificationBundleReady for a specific dataId, then:
-     *  1. Decrypt the outer envelope with SKV → bundleContent JSON
+     *  1. Decrypt the outer envelope with SKV => bundleContent JSON
      *  2. Parse { encryptedCid (hex), kdec } from bundleContent
-     *  3. Decrypt the CID with Kdec → plain CID string
+     *  3. Decrypt the CID with Kdec => plain CID string
      */
-    private _waitForBundleAndDecrypt(dataId: number): Promise<string> {
+    private _waitForBundleAndDecrypt(): Promise<string> {
         return new Promise((resolve, reject) => {
             const handler = (verifier: string, bundleDataId: bigint, bundleHex: string) => {
                 if (verifier !== this.signer.address) return;
-                if (Number(bundleDataId) !== dataId) return;
 
                 this.contract.removeListener("VerifierVerificationBundleReady", handler);
 
@@ -171,11 +181,8 @@ export class VerifierPrivacySecond extends VerifierPrivacyFirst {
                         JSON.parse(envelopeJson),
                     );
 
-                    // Inner payload: { encryptedCid: hex, kdec: string }
                     const {encryptedCid, kdec} = JSON.parse(bundleContent);
 
-                    // encryptedCid is the raw bytes from publishIpfsCid calldata,
-                    // which itself is toUtf8Bytes(JSON.stringify(HybridCiphertext))
                     const decryptedCid = this.cipher.decryptStringHybrid(
                         kdec,
                         JSON.parse(toUtf8String(encryptedCid)),

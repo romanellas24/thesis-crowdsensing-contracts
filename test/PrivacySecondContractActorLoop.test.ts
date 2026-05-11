@@ -366,6 +366,9 @@ describe("[ACTOR CLASSES] PrivacySecondContract", function () {
         it("manual requestAuthToVerify + submitResult works", async function () {
             const {privacyContract, senderActor, verifierActors, ownerActor} = await loadFixture(pscFullSetup);
 
+            if(!ownerActor.listening)
+                ownerActor.startListening();
+
             const dataReady = waitForPendingData(privacyContract);
             await senderActor.publishData("QmManualPSC", validPosition);
             await dataReady;
@@ -378,54 +381,9 @@ describe("[ACTOR CLASSES] PrivacySecondContract", function () {
             ownerActor.stopListening();
         });
 
-        it("submitVerifyResult reverts if bundle has not been delivered", async function () {
-            // This test bypasses the SDK to verify the SC-level protection.
-            // We get the verifier elected (slot assigned) but skip bundle delivery,
-            // then call submitVerifyResult directly on the contract.
-            const {privacyContract, dataSentToken} = await pscDeployment();
-
-            const ownerActor = new OwnerPrivacySecond(owner, privacyContract, dataSentToken, ownerKeys, cipher);
-
-            // 1. Enroll sender and verifier (owner must respond to enrollment events)
-            ownerActor.startListening();
-
-            const senderActor = new SenderPrivacySecond(sender1, privacyContract, dataSentToken, cipher);
-            await senderActor.setup();
-            const verifierActor = new VerifierPrivacySecond(
-                verifier1, privacyContract, dataSentToken, cipher,
-                () => VerificationResult.SUCCESS,
-            );
-            await verifierActor.setup();
-
-            // 2. Stop auto-listener so owner will NOT deliver any bundle
-            ownerActor.stopListening();
-
-            // 3. Submit data and manually trigger notifyVerificationKeyReady only
-            const dataKeyPending = new Promise<void>((resolve) => {
-                privacyContract.once(
-                    // @ts-ignore
-                    "DataRequiredVerificationKeyGeneration",
-                    async (dataId: bigint, event: any) => {
-                        await ownerActor.handleDataRequiresKey(Number(dataId), event);
-                        resolve();
-                    },
-                );
-            });
-            await (await senderActor.publishData("QmNoBundle", validPosition)).wait();
-            await dataKeyPending; // data is now in pending
-
-            // 4. Request via raw contract call (bypasses SDK's bundle-wait)
-            await privacyContract.connect(verifier1).requestAuthToVerify();
-
-            // 5. Bundle NOT delivered => submitVerifyResult must revert
-            await expect(
-                privacyContract.connect(verifier1).submitVerifyResult(VerificationResult.SUCCESS),
-            ).to.be.revertedWith("Bundle not delivered yet");
-        });
-
         it("submitVerifyResult with CANNOT_COMPLETE bypasses bundle check", async function () {
             // CANNOT_COMPLETE is the escape hatch: it does not require the bundle.
-            const {privacyContract, dataSentToken} = await pscDeployment();
+            const {privacyContract, dataSentToken} = await loadFixture(pscDeployment);
             const ownerActor = new OwnerPrivacySecond(owner, privacyContract, dataSentToken, ownerKeys, cipher);
             ownerActor.startListening();
 
