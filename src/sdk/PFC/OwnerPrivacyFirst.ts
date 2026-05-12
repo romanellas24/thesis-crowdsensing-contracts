@@ -14,11 +14,11 @@ import {DataSentTokenContract, PrivacyFirstContract} from "../../../typechain-ty
  *  1. Auto-listener   -> call `startListening()`, events are handled transparently
  *  2. Manual fallback -> call `handleSenderEnrollment` / `handleVerifierEnrollment` directly
  */
-export class OwnerPrivacyFirst {
+export class OwnerPrivacyFirst<C extends PrivacyFirstContract = PrivacyFirstContract> {
 
     // protected: child classes (OwnerPrivacySecond) need direct access
     protected readonly signer: HardhatEthersSigner;
-    protected readonly contract: PrivacyFirstContract;
+    protected contract: C;
     protected readonly dstToken: DataSentTokenContract;
     protected readonly keys: KeyPair;
     protected readonly cipher: CipherProvider;
@@ -29,7 +29,7 @@ export class OwnerPrivacyFirst {
 
     constructor(
         signer: HardhatEthersSigner,
-        contract: PrivacyFirstContract,
+        contract: C,
         dstToken: DataSentTokenContract,
         ownerKeys: KeyPair,
         cipher: CipherProvider,
