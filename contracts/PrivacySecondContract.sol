@@ -274,8 +274,4 @@ contract PrivacySecondContract is PrivacyFirstContract {
         return _computeDecayedReward(_dataPerChunkReceived[chunkIndex]);
     }
 
-    function getConfig() external view returns (Config memory) {
-        return _config;
-    }
-
 }

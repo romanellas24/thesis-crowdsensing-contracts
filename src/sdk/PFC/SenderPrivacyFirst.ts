@@ -70,7 +70,6 @@ export class SenderPrivacyFirst<C extends PrivacyFirstContract = PrivacyFirstCon
 
         this.keys = this.cipher.generateKeyPair();
 
-        // Listener must be registered BEFORE the tx so we don't miss the event
         try {
             const event = this.contract.getEvent("SenderEncryptionKeyReady");
             const waitForKey = new Promise<string>((resolve, reject) => {

@@ -9,12 +9,22 @@ function createNotifier() {
     let resolve: (() => void) | null = null;
     return {
         notify() {
-            if (resolve) { const r = resolve; resolve = null; r(); }
-            else { pending = true; }
+            if (resolve) {
+                const r = resolve;
+                resolve = null;
+                r();
+            } else {
+                pending = true;
+            }
         },
         wait(): Promise<void> {
-            if (pending) { pending = false; return Promise.resolve(); }
-            return new Promise(r => { resolve = r; });
+            if (pending) {
+                pending = false;
+                return Promise.resolve();
+            }
+            return new Promise(r => {
+                resolve = r;
+            });
         },
     };
 }
@@ -23,6 +33,7 @@ function createNotifier() {
 export interface VerifyLoopHandle {
     /** Gracefully stop the loop. Resolves `done` with ManualStop. */
     stop(): void;
+
     done: Promise<LoopStopReason>;
 }
 
@@ -98,30 +109,44 @@ export class VerifierPrivacyFirst<C extends PrivacyFirstContract = PrivacyFirstC
         this.keys = this.cipher.generateKeyPair();
 
         const event = this.contract.getEvent("VerifierDecryptionKeyReady");
+        let cleanup = () => {
+        };
+        let success = false;
+
+
         const waitForKey = new Promise<string>((resolve) => {
             const handler = (verifier: string, decryptionKey: string) => {
                 if (verifier !== this.signer.address) return;
                 this.contract.removeListener(event, handler);
+                cleanup();
                 resolve(decryptionKey);
             };
+            cleanup = () => this.contract.removeListener(event, handler);
             this.contract.on(event, handler);
         });
 
-        const ownerPubKey: string = await this.contract
-            .connect(this.signer)
-            .getInitiatorPublicKey();
 
-        const encryptedPK = this.cipher.encryptStringHybrid(ownerPubKey, this.keys.publicKey);
-        await this.contract
-            .connect(this.signer)
-            .publishEncryptedVerifierPublicKey(JSON.stringify(encryptedPK));
+        try {
+            const ownerPubKey: string = await this.contract
+                .connect(this.signer)
+                .getInitiatorPublicKey();
 
-        const encryptedKdec = await waitForKey;
-        this.kdec = this.cipher.decryptStringHybrid(
-            this.keys.privateKey,
-            JSON.parse(encryptedKdec),
-        );
-        this._enrolled = true;
+            const encryptedPK = this.cipher.encryptStringHybrid(ownerPubKey, this.keys.publicKey);
+            await this.contract
+                .connect(this.signer)
+                .publishEncryptedVerifierPublicKey(JSON.stringify(encryptedPK));
+
+
+            const encryptedKdec = await waitForKey;
+            this.kdec = this.cipher.decryptStringHybrid(
+                this.keys.privateKey,
+                JSON.parse(encryptedKdec),
+            );
+            this._enrolled = true;
+            success = true;
+        } finally {
+            if (!success) cleanup();
+        }
     }
 
     // Bond
@@ -133,6 +158,11 @@ export class VerifierPrivacyFirst<C extends PrivacyFirstContract = PrivacyFirstC
             .connect(this.signer)
             .approve(await this.contract.getAddress(), required);
         await this.contract.connect(this.signer).verifierPayBond();
+    }
+
+    async fullSetup(maxItems = Infinity): Promise<VerifyLoopHandle> {
+        await this.setup();
+        return this.startVerifyLoop(maxItems);
     }
 
     /** Convenience: enroll + payBond. */
@@ -334,6 +364,7 @@ export class VerifierPrivacyFirst<C extends PrivacyFirstContract = PrivacyFirstC
     protected _subscribeLoopStopEvents(
         _requestStop: (reason: LoopStopReason) => void,
     ): () => void {
-        return () => {};
+        return () => {
+        };
     }
 }

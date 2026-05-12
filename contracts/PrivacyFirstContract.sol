@@ -548,4 +548,8 @@ contract PrivacyFirstContract {
         }
     }
 
+    function getConfig() external view returns (Config memory) {
+        return _config;
+    }
+
 }

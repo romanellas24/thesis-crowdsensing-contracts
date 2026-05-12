@@ -48,6 +48,14 @@ export class OwnerPrivacyFirst<C extends PrivacyFirstContract = PrivacyFirstCont
 
     // Auto-listener mode
 
+    async setup() {
+        const config = await this.contract.connect(this.signer).getConfig();
+        await this.payInitialSupply(config.rewardConfig.totalDst);
+        this.startListening();
+        this._countValid = 0n;
+        this._countInvalid = 0n;
+    }
+
     /**
      * Subscribe to SenderEnrolledEvent and VerifierEnrolledEvent.
      * Enrollment responses are sent automatically.
@@ -122,26 +130,26 @@ export class OwnerPrivacyFirst<C extends PrivacyFirstContract = PrivacyFirstCont
     }
 
     protected handleDataVerificationCompleted(dataId: bigint, result: boolean): void {
-        if(result){
+        if (result) {
             this._countValid = this._countValid + 1n;
         } else {
-            this._countInvalid = this._countInvalid - 1n;
+            this._countInvalid = this._countInvalid + 1n;
         }
     }
 
     // Campaign management
-    protected async payInitialSupply(totalDst: number): Promise<void> {
+    protected async payInitialSupply(totalDst: bigint): Promise<void> {
         await this.dstToken
             .connect(this.signer)
             .approve(await this.contract.getAddress(), totalDst);
         await this.contract.connect(this.signer).payInitialSupply();
     }
 
-    protected async closeCampaign() {
+    public async closeCampaign() {
         return this.contract.connect(this.signer).closeCampaign();
     }
 
-    protected async getCampaignData(): Promise<{cids: any[]; statuses: any[]; chunks: any[]}> {
+    protected async getCampaignData(): Promise<{ cids: any[]; statuses: any[]; chunks: any[] }> {
         const [cids, statuses, chunks] = await this.contract
             .connect(this.signer)
             .getCampaignData();
@@ -150,6 +158,14 @@ export class OwnerPrivacyFirst<C extends PrivacyFirstContract = PrivacyFirstCont
 
     public get listening(): boolean {
         return this._listening;
+    }
+
+    public getValidCount(): bigint {
+        return this._countValid;
+    }
+
+    public getInvalidCount(): bigint {
+        return this._countInvalid;
     }
 
 }
