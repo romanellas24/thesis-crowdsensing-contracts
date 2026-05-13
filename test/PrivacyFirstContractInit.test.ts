@@ -121,7 +121,7 @@ describe("[INIT PHASE - SENDER] PrivacyFirstContract", function () {
     });
 
     it("[SENDER]: Decrypt encryptionKey sent by owner in confidential way", async function () {
-        const {privacyContract} = await contractDeployment();
+        const {privacyContract} = await loadFixture(contractDeployment);
         const waitForEvent = new Promise<{ sender: string; key: string }>((resolve, reject) => {
             // @ts-ignore
             privacyContract.connect(owner).once("SenderEnrolledEvent", (sender: string, key: string) => {
@@ -134,7 +134,7 @@ describe("[INIT PHASE - SENDER] PrivacyFirstContract", function () {
         });
         const waitForEncryptionKey = new Promise<{ sender: string; encryptionKey: string }>((resolve, reject) => {
             // @ts-ignore
-            privacyContract.connect(sender1).once("SenderEncryptionKeyReady", (sender: string, encryptionKey: string) => {
+            privacyContract.connect(sender2).once("SenderEncryptionKeyReady", (sender: string, encryptionKey: string) => {
                 try {
                     resolve({sender, encryptionKey});
                 } catch (err) {
@@ -144,9 +144,9 @@ describe("[INIT PHASE - SENDER] PrivacyFirstContract", function () {
         });
         let encryptionKeys = cipher.generateEncryptionKeys();
         const senderKeys = cipher.generateKeyPair();
-        let ownerPublicKey = await privacyContract.connect(sender1).getInitiatorPublicKey();
+        let ownerPublicKey = await privacyContract.connect(sender2).getInitiatorPublicKey();
         const encryptedPubKey = cipher.encryptStringHybrid(ownerPublicKey, senderKeys.publicKey);
-        await privacyContract.connect(sender1).publishEncryptedSenderPublicKey(JSON.stringify(encryptedPubKey));
+        await privacyContract.connect(sender2).publishEncryptedSenderPublicKey(JSON.stringify(encryptedPubKey));
 
         // Wait until the event is actually seen
         const result = await waitForEvent;
@@ -263,7 +263,7 @@ describe("[INIT PHASE - VERIFIER] PrivacyFirstContract", function () {
 
 
     it("[VERIFIER]: Decrypt encryptionKey sent by owner in confidential way", async function () {
-        const {privacyContract} = await contractDeployment();
+        const {privacyContract} = await loadFixture(contractDeployment);
         const waitForVerifier = new Promise<{ verifier: string; key: string }>((resolve, reject) => {
             // @ts-ignore
             privacyContract.connect(owner).once("VerifierEnrolledEvent", (verifier: string, key: string) => {
