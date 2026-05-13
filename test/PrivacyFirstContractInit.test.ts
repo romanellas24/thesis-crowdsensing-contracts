@@ -9,6 +9,12 @@ require('dotenv').config();
 
 import {contractDeployment, sender1, sender2, sender3, verifier1, owner, ownerKeys} from "../testUtils/constants";
 
+let env: Awaited<ReturnType<typeof contractDeployment>>;
+beforeEach(async function () {
+    env = await loadFixture(contractDeployment);
+    await env.privacyContract.removeAllListeners();
+});
+
 describe("[INIT PHASE - SENDER] PrivacyFirstContract", function () {
 
     it("[OWNER]: Deployment", async function () {
