@@ -9,6 +9,12 @@ require('dotenv').config();
 
 describe("[DATA SUBMISSION] PrivacyFirstContract", function () {
 
+    let env: Awaited<ReturnType<typeof contractDeployment>>;
+    beforeEach(async function () {
+        env = await loadFixture(contractDeployment);
+        await env.privacyContract.removeAllListeners();
+    });
+
     it("[SENDER]: Sends encrypted CID to SC", async function () {
         const {privacyContract} = await loadFixture(contractDeployment);
         await utils.setupOwnerPrivacy(owner, privacyContract, ownerKeys);

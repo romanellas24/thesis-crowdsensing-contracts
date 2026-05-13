@@ -8,7 +8,7 @@ import { VerificationResult } from "../../src/sdk/utils/CipherProvider";
 import {OwnerPrivacySecond} from "../../src/sdk/PSC/OwnerPrivacySecond";
 import LoopStopReason from "../../src/sdk/utils/LoopStopReason";
 import cipher from "../../testUtils/cipher";
-import { ownerKeys } from "../../testUtils/constants";
+import {ownerKeys} from "../../testUtils/constants";
 import { testConfig, novelParams, validPosition, BOND_DST } from "./_helpers/testConfigs";
 import { tick, waitForEventMatching } from "./_helpers/waitForEvent";
 
