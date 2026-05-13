@@ -24,7 +24,6 @@ contract PrivacyFirstContract {
     string private _ownerPubKey;
     Config internal _config;
     //users that have enrolled (waiting for B's encryption key publishing)
-    mapping(address => bool) private _senderEnrolledRequest;
     mapping(address => bool) internal _verifierEnrolledRequest;
     //Effective enrolled users
     mapping(address => bool) internal _senders;
@@ -125,8 +124,7 @@ contract PrivacyFirstContract {
 
     function publishEncryptedSenderPublicKey(string calldata encryptedPubKey) public {
         require(_campaignOpen, "Campaign is closed");
-        require(!_senderEnrolledRequest[msg.sender], "Sender has already requested to join");
-        _senderEnrolledRequest[msg.sender] = true;
+        require(!_senders[msg.sender], "Sender has already joined");
         emit SenderEnrolledEvent(msg.sender, encryptedPubKey);
     }
 
@@ -141,7 +139,7 @@ contract PrivacyFirstContract {
             validData: 0,
             invalidData: 0
         });
-        delete _senderEnrolledRequest[sender];
+
         emit SenderEncryptionKeyReady(sender, encryptionKey);
     }
 

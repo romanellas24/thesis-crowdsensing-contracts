@@ -12,14 +12,10 @@ import { ownerKeys } from "../../testUtils/constants";
 import { testConfig, novelParams, validPosition, BOND_DST } from "./_helpers/testConfigs";
 import { tick, waitForEventMatching } from "./_helpers/waitForEvent";
 
-function delay(ms: number) {
-    return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
 describe("[E2E] OwnerPrivacySecond - PrivacySecondContract", function () {
 
     async function deployFixture() {
-        const [_owner, _sender, _verifier1, _verifier2] = await ethers.getSigners();
+        const [_owner, _sender, _verifier1, _verifier2, _verifierM] = await ethers.getSigners();
 
         const DstFactory = await ethers.getContractFactory("DataSentTokenContract");
         const dstToken = await DstFactory.connect(_owner).deploy(999_999_999n);
@@ -32,17 +28,19 @@ describe("[E2E] OwnerPrivacySecond - PrivacySecondContract", function () {
             novelParams,
         );
 
-        for (const s of [_sender, _verifier1, _verifier2]) {
+        for (const s of [_sender, _verifier1, _verifier2, _verifierM]) {
             await dstToken.connect(_owner).transfer(s.address, BOND_DST);
         }
 
         const cb = () => VerificationResult.SUCCESS;
+        const cbM = () => VerificationResult.REJECTED;
         return {
             contract, dstToken,
             owner:     new OwnerPrivacySecond(_owner, contract, dstToken, ownerKeys, cipher),
             sender:    new SenderPrivacySecond(_sender, contract, dstToken, cipher),
             verifier1: new VerifierPrivacySecond(_verifier1, contract, dstToken, cipher, cb),
             verifier2: new VerifierPrivacySecond(_verifier2, contract, dstToken, cipher, cb),
+            maliciousVerifier: new VerifierPrivacySecond(_verifierM, contract, dstToken, cipher, cbM),
         };
     }
 
@@ -79,7 +77,7 @@ describe("[E2E] OwnerPrivacySecond - PrivacySecondContract", function () {
             const tx = await env.sender.publishData(plainCid, validPosition);
             await tx.wait();
 
-            await delay(20_000);
+            await tick(20_000);
 
             // Both verifiers run the full PSC flow: requestAuthToVerify ->
             // VerifierElectedForData -> owner builds bundle ->
@@ -96,18 +94,23 @@ describe("[E2E] OwnerPrivacySecond - PrivacySecondContract", function () {
             await env.sender.setup();
             await env.verifier1.setup();
             await env.verifier2.setup();
+            await env.maliciousVerifier.setup();
 
             const tx = await env.sender.publishData("QmCacheLifecycle", validPosition);
             await tx.wait();
 
             const cache: Map<number, string> = (env.owner as any).encryptedCidCache;
-            await delay(20_000);
+            await tick(20_000);
 
-            // After the first verifier (1/2 served) the entry must still be there.
+            // After the first verifier (1/3 served) the entry must still be there.
             await env.verifier1.requestAndVerify();
-            expect(cache.has(0)).to.equal(true); //TODO: DEBUG HERE
+            expect(cache.has(0)).to.equal(true);
 
-            // After the second (2/2 = checksRequired) the entry is freed.
+            // After the third verifier (2/3 served) the entry must still be there.
+            await env.maliciousVerifier.requestAndVerify();
+            expect(cache.has(0)).to.equal(true);
+
+            // After the third verifier (3/3 served) the entry must still be there.
             await env.verifier2.requestAndVerify();
             expect(cache.has(0)).to.equal(false);
         });
@@ -130,7 +133,9 @@ describe("[E2E] OwnerPrivacySecond - PrivacySecondContract", function () {
             await env.owner.kickVerifier(env.verifier1.getAddress());
             await kickedEvP;
 
-            expect(await handle.done).to.equal(LoopStopReason.Kicked);
+            expect(
+                await handle.done
+            ).to.equal(LoopStopReason.Kicked);
         });
     });
 

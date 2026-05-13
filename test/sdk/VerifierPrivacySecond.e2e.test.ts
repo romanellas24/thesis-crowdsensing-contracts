@@ -45,10 +45,11 @@ describe("[E2E] VerifierPrivacySecond - PrivacySecondContract", function () {
     let env: Awaited<ReturnType<typeof deployFixture>>;
     beforeEach(async function () {
         env = await loadFixture(deployFixture);
+        await env.owner.stopListening();
         await env.contract.removeAllListeners();
     });
 
-    describe("enroll() override (§2.6.1)", function () {
+    describe("enroll() override (2.6.1)", function () {
         it("registers the verifier and does NOT store a global Kdec", async function () {
             await env.owner.setup();
             await env.verifier1.enroll();
@@ -88,6 +89,8 @@ describe("[E2E] VerifierPrivacySecond - PrivacySecondContract", function () {
             // The Owner's auto-listener handles the entire chain:
             //  DataRequiredVerificationKeyGeneration -> notifyVerificationKeyReady
             //  VerifierElectedForData               -> deliverVerificationBundle
+
+            await tick(20_000);
             const r1 = await env.verifier1.requestAndVerify();
 
             expect(r1.decryptedCid).to.equal(plainCid);
@@ -103,6 +106,7 @@ describe("[E2E] VerifierPrivacySecond - PrivacySecondContract", function () {
 
             const tx = await env.sender.publishData("QmPscConsensus", validPosition);
             await tx.wait();
+            await tick(20_000);
 
             const dataVerifiedP = waitForEvent(env.contract, "DataVerified");
             await env.verifier1.requestAndVerify();

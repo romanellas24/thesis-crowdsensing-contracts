@@ -10,7 +10,7 @@ import {
 import { VerificationResult } from "../../src/sdk/utils/CipherProvider";
 import LoopStopReason from "../../src/sdk/utils/LoopStopReason";
 import cipher from "../../testUtils/cipher";
-import { ownerKeys } from "../../testUtils/constants";
+import {owner, ownerKeys} from "../../testUtils/constants";
 import { testConfig, validPosition, BOND_DST } from "./_helpers/testConfigs";
 import { tick, waitForEvent } from "./_helpers/waitForEvent";
 
@@ -51,6 +51,7 @@ describe("[E2E] VerifierPrivacyFirst - PrivacyFirstContract", function () {
     let env: Awaited<ReturnType<typeof deployFixture>>;
     beforeEach(async function () {
         env = await loadFixture(deployFixture);
+        await env.owner.stopListening();
         await env.contract.removeAllListeners();
     });
 

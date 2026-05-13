@@ -7,17 +7,18 @@ import { SenderPrivacySecond } from "../../src/sdk/PSC/SenderPrivacySecond";
 import cipher from "../../testUtils/cipher";
 import { ownerKeys } from "../../testUtils/constants";
 import { testConfig, novelParams, validPosition, BOND_DST } from "./_helpers/testConfigs";
-import { tick, waitForEvent } from "./_helpers/waitForEvent";
+import {eventFiresWithin, tick, waitForEvent} from "./_helpers/waitForEvent";
 
 /**
  * SenderPrivacySecond is intentionally a thin extension of SenderPrivacyFirst
- * (§2.6.2 reward decay is on-chain). These tests verify that:
+ * (2.6.2 reward decay is on-chain). These tests verify that:
  *  - The inherited enrollment + bond + publish flow works against PSC.
  *  - publishData triggers the PSC-specific DataRequiredVerificationKeyGeneration
  *    event - the protocol invariant that distinguishes PSC from PFC at
  *    submission time.
  *  - The encrypted CID submitted on-chain round-trips through Kenc/Kdec.
  */
+
 describe("[E2E] SenderPrivacySecond - PrivacySecondContract", function () {
 
     async function deployFixture() {
@@ -46,6 +47,9 @@ describe("[E2E] SenderPrivacySecond - PrivacySecondContract", function () {
     let env: Awaited<ReturnType<typeof deployFixture>>;
     beforeEach(async function () {
         env = await loadFixture(deployFixture);
+        //@ts-ignore
+        env.sender._enrolled = false;
+        await env.owner.stopListening();
         await env.contract.removeAllListeners();
     });
 
@@ -80,11 +84,8 @@ describe("[E2E] SenderPrivacySecond - PrivacySecondContract", function () {
 
             // With the Owner not listening, notifyVerificationKeyReady must NOT
             // have been called, so DataVerificationRequestedEvent stays silent.
-            const settled = await Promise.race([
-                waitForEvent(env.contract, "DataVerificationRequestedEvent", 250).then(() => "fired" as const),
-                new Promise<"silent">(r => setTimeout(() => r("silent"), 300)),
-            ]);
-            expect(settled).to.equal("silent");
+            const result = await eventFiresWithin(env.contract, "DataVerificationRequestedEvent", 300);
+            expect(result).to.equal("silent");
         });
 
         it("submits a CID that the owner can decrypt back to the plaintext", async function () {

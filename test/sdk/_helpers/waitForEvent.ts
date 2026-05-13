@@ -53,6 +53,31 @@ export function waitForEventMatching<T extends any[] = any[]>(
 }
 
 /**
+ * Resolves "fired" if the event is emitted within timeoutMs, "silent" otherwise.
+ * Never rejects — designed for negative assertions ("this event must NOT fire").
+ */
+export function eventFiresWithin(
+    contract: any,
+    eventName: string,
+    timeoutMs: number,
+): Promise<"fired" | "silent"> {
+    return new Promise((resolve) => {
+        const event = contract.getEvent(eventName);
+        let handler: (...args: any[]) => void;
+        const timer = setTimeout(() => {
+            contract.removeListener(event, handler);
+            resolve("silent");
+        }, timeoutMs);
+        handler = () => {
+            clearTimeout(timer);
+            contract.removeListener(event, handler);
+            resolve("fired");
+        };
+        contract.on(event, handler);
+    });
+}
+
+/**
  * Sleep for `ms` milliseconds - used sparingly to give the JS event loop a
  * chance to drain async listeners after a tx is mined.
  */

@@ -1,5 +1,5 @@
 import {toUtf8String} from "ethers";
-import {CipherProvider, KeyPair, VerificationResult, VerifyCallback} from "../../sdk/utils/CipherProvider";
+import {CipherProvider, KeyPair, VerificationResult, VerifyCallback} from "../utils/CipherProvider";
 import LoopStopReason from "../../sdk/utils/LoopStopReason";
 import {HardhatEthersSigner} from "@nomicfoundation/hardhat-ethers/signers";
 import {DataSentTokenContract, PrivacyFirstContract} from "../../../typechain-types";
@@ -315,13 +315,15 @@ export class VerifierPrivacyFirst<C extends PrivacyFirstContract = PrivacyFirstC
         const done: Promise<LoopStopReason> = (async () => {
             try {
                 while (!stopped) {
-                    if (completed >= maxItems) return LoopStopReason.MaxItemsReached;
+                    if (completed >= maxItems)
+                        return LoopStopReason.MaxItemsReached;
 
                     try {
                         await this.requestAndVerify();
                         completed++;
                     } catch (e: any) {
-                        if (externalStopReason !== null) return externalStopReason;
+                        if (externalStopReason !== null)
+                            return externalStopReason;
 
                         const msg: string = e?.reason ?? e?.message ?? String(e);
 
@@ -337,10 +339,13 @@ export class VerifierPrivacyFirst<C extends PrivacyFirstContract = PrivacyFirstC
                         throw e;
                     }
                 }
+                if (externalStopReason !== null)
+                    return externalStopReason;
                 return LoopStopReason.ManualStop;
             } finally {
                 stopped = true;
-                this.contract.removeListener(event, onNewData);
+                await this.contract.removeListener(event, onNewData);
+                unsubscribeStopEvents();
             }
         })();
 

@@ -2,6 +2,8 @@ import {toUtf8Bytes} from "ethers";
 import {CipherProvider, KeyPair, OwnerPrivacyFirst} from "../PFC";
 import {HardhatEthersSigner} from "@nomicfoundation/hardhat-ethers/signers";
 import {DataSentTokenContract, PrivacySecondContract} from "../../../typechain-types";
+import {ownerKeys} from "../../../testUtils/constants";
+import cipher from "../../../testUtils/cipher";
 
 /**
  * SDK wrapper for the campaign initiator (B) operating on PrivacySecondContract.
@@ -62,7 +64,14 @@ export class OwnerPrivacySecond extends OwnerPrivacyFirst<PrivacySecondContract>
         super(signer, contract, dstToken, ownerKeys, cipher);
     }
 
-    // -----------------------------------------------------------------------
+
+    async setup(): Promise<void> {
+        await super.setup();
+        this.verifierPublicKeys.clear();
+        this.bundleDeliveryCount.clear();
+    }
+
+// -----------------------------------------------------------------------
     // Listener management
     // -----------------------------------------------------------------------
 

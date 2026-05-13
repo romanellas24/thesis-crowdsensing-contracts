@@ -39,6 +39,9 @@ describe("[E2E] SenderPrivacyFirst - PrivacyFirstContract", function () {
     let env: Awaited<ReturnType<typeof deployFixture>>;
     beforeEach(async function () {
         env = await loadFixture(deployFixture);
+        //@ts-ignore
+        env.sender._enrolled = false;
+        await env.owner.stopListening();
         await env.contract.removeAllListeners();
     });
 
@@ -61,7 +64,6 @@ describe("[E2E] SenderPrivacyFirst - PrivacyFirstContract", function () {
                 new Promise<"timeout">(r => setTimeout(() => r("timeout"), 300)),
             ]);
             expect(settled).to.equal("timeout");
-            await env.contract.removeAllListeners();
         });
 
         it("rejects a second enrollment attempt from the same address", async function () {
@@ -71,7 +73,7 @@ describe("[E2E] SenderPrivacyFirst - PrivacyFirstContract", function () {
             // The SC's `publishEncryptedSenderPublicKey` reverts when the
             // sender has already requested to join.
             await expect(env.sender.enroll())
-                .to.be.revertedWith("Sender has already requested to join");
+                .to.be.revertedWith("Sender has already joined");
         });
     });
 
@@ -146,7 +148,7 @@ describe("[E2E] SenderPrivacyFirst - PrivacyFirstContract", function () {
             await env.owner.setup();
             // sender NOT enrolled
             await expect(env.sender.publishData("QmNoEnroll", validPosition))
-                .to.be.rejectedWith("Not enrolled");
+                .to.be.rejectedWith("Only senders allowed to send data.");
         });
 
         it("rejects submissions exceeding maxDataPerSender", async function () {
@@ -162,6 +164,7 @@ describe("[E2E] SenderPrivacyFirst - PrivacyFirstContract", function () {
             // 6th submission must revert
             await expect(env.sender.publishData("QmOver_6", validPosition))
                 .to.be.revertedWith("Max data limit reached");
+
         });
     });
 
