@@ -1,4 +1,8 @@
 {
+  "scripts": {
+    "test": "hardhat test",
+    "test-bail": "hardhat test --bail"
+  },
   "devDependencies": {
     "@nomicfoundation/hardhat-toolbox": "^6.1.2",
     "hardhat": "^2.28.6",

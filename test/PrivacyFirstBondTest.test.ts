@@ -15,6 +15,12 @@ require('dotenv').config();
 
 describe("[BOND MECHANISM] PrivacyFirstContract", function () {
 
+    let env: Awaited<ReturnType<typeof contractDeployment>>;
+    beforeEach(async function () {
+        env = await loadFixture(contractDeployment);
+        await env.privacyContract.removeAllListeners();
+    });
+
     async function enrolledSenderNoBond() {
         const {privacyContract, dataSentToken} = await contractDeployment();
         await utils.setupOwnerPrivacy(owner, privacyContract, ownerKeys);

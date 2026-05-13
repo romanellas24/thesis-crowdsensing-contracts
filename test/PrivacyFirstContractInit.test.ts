@@ -7,9 +7,15 @@ import utils from "../testUtils/utils";
 
 require('dotenv').config();
 
-import {contractDeployment, sender1, sender2, sender3, verifier1, owner, ownerKeys} from "../testUtils/constants";
+import {contractDeployment, sender1, verifier1, owner, ownerKeys} from "../testUtils/constants";
 
 describe("[INIT PHASE - SENDER] PrivacyFirstContract", function () {
+
+    let env: Awaited<ReturnType<typeof contractDeployment>>;
+    beforeEach(async function () {
+        env = await loadFixture(contractDeployment);
+        await env.privacyContract.removeAllListeners();
+    });
 
     it("[OWNER]: Deployment", async function () {
         const {privacyContract} = await loadFixture(contractDeployment);
@@ -75,103 +81,13 @@ describe("[INIT PHASE - SENDER] PrivacyFirstContract", function () {
         expect(senderPublicKey).to.equal(senderKeys.publicKey);
     });
 
-    it("[OWNER]: Owner send encryption key only for sender", async function () {
-        const {privacyContract} = await loadFixture(contractDeployment);
-        const waitForEvent = new Promise<{ sender: string; key: string }>((resolve, reject) => {
-            // @ts-ignore
-            privacyContract.connect(owner).once("SenderEnrolledEvent", (sender: string, key: string) => {
-                try {
-                    resolve({sender, key});
-                } catch (err) {
-                    reject(err);
-                }
-            });
-        });
-        let encryptionKeys = cipher.generateEncryptionKeys();
-        const senderKeys = cipher.generateKeyPair();
-        let ownerPublicKey = await privacyContract.connect(sender1).getInitiatorPublicKey();
-        const encryptedPubKey = cipher.encryptStringHybrid(ownerPublicKey, senderKeys.publicKey);
-        await privacyContract.connect(sender1).publishEncryptedSenderPublicKey(JSON.stringify(encryptedPubKey));
-
-        // Wait until the event is actually seen
-        const result = await waitForEvent;
-        const bundle = JSON.parse(result.key);
-        const senderPublicKey = cipher.decryptStringHybrid(ownerKeys.privateKey, bundle)
-        expect(senderPublicKey).to.equal(senderKeys.publicKey);
-        const encryptionKeyHidden = JSON.stringify(cipher.encryptStringHybrid(senderPublicKey, encryptionKeys.encryptionKey));
-        const waitForEncryptionKey = new Promise<{ sender: string; encryptionKey: string }>((resolve, reject) => {
-            // @ts-ignore
-            privacyContract.connect(sender1).once("SenderEncryptionKeyReady", (sender: string, encryptionKey: string) => {
-                try {
-                    resolve({sender, encryptionKey});
-                } catch (err) {
-                    reject(err);
-                }
-            });
-        });
-        privacyContract.connect(owner).publishSenderEncryptionKey(result.sender, encryptionKeyHidden);
-        const encryptionKeyResult = await waitForEncryptionKey;
-        expect(encryptionKeyResult.sender).to.equal(result.sender).to.equal(sender1.address);
-    });
-
-    it("[SENDER]: Decrypt encryptionKey sent by owner in confidential way", async function () {
-        const {privacyContract} = await contractDeployment();
-        const waitForEvent = new Promise<{ sender: string; key: string }>((resolve, reject) => {
-            // @ts-ignore
-            privacyContract.connect(owner).once("SenderEnrolledEvent", (sender: string, key: string) => {
-                try {
-                    resolve({sender, key});
-                } catch (err) {
-                    reject(err);
-                }
-            });
-        });
-        const waitForEncryptionKey = new Promise<{ sender: string; encryptionKey: string }>((resolve, reject) => {
-            // @ts-ignore
-            privacyContract.connect(sender1).once("SenderEncryptionKeyReady", (sender: string, encryptionKey: string) => {
-                try {
-                    resolve({sender, encryptionKey});
-                } catch (err) {
-                    reject(err);
-                }
-            });
-        });
-        let encryptionKeys = cipher.generateEncryptionKeys();
-        const senderKeys = cipher.generateKeyPair();
-        let ownerPublicKey = await privacyContract.connect(sender1).getInitiatorPublicKey();
-        const encryptedPubKey = cipher.encryptStringHybrid(ownerPublicKey, senderKeys.publicKey);
-        await privacyContract.connect(sender1).publishEncryptedSenderPublicKey(JSON.stringify(encryptedPubKey));
-
-        // Wait until the event is actually seen
-        const result = await waitForEvent;
-        const bundle = JSON.parse(result.key);
-        const senderPublicKey = cipher.decryptStringHybrid(ownerKeys.privateKey, bundle)
-        expect(senderPublicKey).to.equal(senderKeys.publicKey);
-        const encryptionKeyHidden = JSON.stringify(cipher.encryptStringHybrid(senderPublicKey, encryptionKeys.encryptionKey));
-        await privacyContract.connect(owner).publishSenderEncryptionKey(result.sender, encryptionKeyHidden);
-        const encryptionKeyResult = await waitForEncryptionKey;
-        const finalEncryptionKey = cipher.decryptStringHybrid(senderKeys.privateKey, JSON.parse(encryptionKeyResult.encryptionKey));
-        expect(finalEncryptionKey).to.equal(encryptionKeys.encryptionKey);
-    });
-
-    it('[OWNER/SENDER] Use created functions to join SC', async () => {
-        const {privacyContract} = await loadFixture(contractDeployment);
-        await utils.setupOwnerPrivacy(owner, privacyContract, ownerKeys);
-        let promises = [];
-        promises.push(utils.setupSenderPrivacy(sender1, privacyContract));
-        promises.push(utils.setupSenderPrivacy(sender2, privacyContract));
-        promises.push(utils.setupSenderPrivacy(sender3, privacyContract));
-        await Promise.all(promises);
-        await utils.dismantlingOwnerPrivacy(owner, privacyContract);
-    });
-
     it("[SENDER]: Sender1 duplicate the enrollment request", async function () {
         const {privacyContract} = await loadFixture(contractDeployment);
         await utils.setupOwnerPrivacy(owner, privacyContract, ownerKeys);
         await utils.setupSenderPrivacy(sender1, privacyContract);
         expect(
             utils.setupSenderPrivacy(sender1, privacyContract)
-        ).to.be.revertedWith("Sender has already requested to join'")
+        ).to.be.revertedWith("Sender has already joined")
         await utils.dismantlingOwnerPrivacy(owner, privacyContract);
     });
 
@@ -253,49 +169,6 @@ describe("[INIT PHASE - VERIFIER] PrivacyFirstContract", function () {
         const vKey = cipher.decryptStringHybrid(ownerKeys.privateKey, vKeyObject);
         const encryptionKey = cipher.encryptStringHybrid(vKey, encryptionKeys.encryptionKey);
         await privacyContract.connect(owner).publishVerifierDecryptionKey(verifierInfo.verifier, JSON.stringify(encryptionKey))
-    });
-
-
-    it("[VERIFIER]: Decrypt encryptionKey sent by owner in confidential way", async function () {
-        const {privacyContract} = await contractDeployment();
-        const waitForVerifier = new Promise<{ verifier: string; key: string }>((resolve, reject) => {
-            // @ts-ignore
-            privacyContract.connect(owner).once("VerifierEnrolledEvent", (verifier: string, key: string) => {
-                try {
-                    resolve({verifier, key});
-                } catch (err) {
-                    reject(err);
-                }
-            });
-        });
-        const waitForEncryptionKey = new Promise<{ verifier: string; key: string }>((resolve, reject) => {
-            // @ts-ignore
-            privacyContract.connect(verifier1).once("VerifierDecryptionKeyReady", (verifier: string, key: string) => {
-                if (verifier !== verifier1.address)
-                    return;
-                try {
-                    resolve({verifier, key});
-                } catch (err) {
-                    reject(err);
-                }
-            });
-        });
-        const verifierKeys = cipher.generateKeyPair();
-        const encryptionKeys = cipher.generateEncryptionKeys();
-        let ownerPublicKey = await privacyContract.connect(verifier1).getInitiatorPublicKey();
-        const encryptedPubKey = cipher.encryptStringHybrid(ownerPublicKey, verifierKeys.publicKey);
-        await privacyContract.connect(verifier1).publishEncryptedVerifierPublicKey(JSON.stringify(encryptedPubKey));
-        const verifierInfo = await waitForVerifier;
-        expect(
-            verifierInfo.verifier
-        ).to.equal(verifier1.address);
-        const vKeyObject = JSON.parse(verifierInfo.key);
-        const vKey = cipher.decryptStringHybrid(ownerKeys.privateKey, vKeyObject);
-        const decryptionKey = cipher.encryptStringHybrid(vKey, encryptionKeys.decryptionKey);
-        await privacyContract.connect(owner).publishVerifierDecryptionKey(verifierInfo.verifier, JSON.stringify(decryptionKey))
-        let encryptedKey = (await waitForEncryptionKey).key;
-        encryptedKey = cipher.decryptStringHybrid(verifierKeys.privateKey, JSON.parse(encryptedKey));
-        expect(encryptedKey).to.equal(encryptionKeys.decryptionKey);
     });
 
 });

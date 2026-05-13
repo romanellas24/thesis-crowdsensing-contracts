@@ -102,6 +102,12 @@ async function contractDeployment() {
 
 describe("[SPATIAL CHUNKING] PrivacyFirstContract", function () {
 
+    let env: Awaited<ReturnType<typeof contractDeployment>>;
+    beforeEach(async function () {
+        env = await loadFixture(contractDeployment);
+        await env.privacyContract.removeAllListeners();
+    });
+
     it("[SENDER]: Data with valid position is accepted", async function () {
         const {privacyContract} = await loadFixture(contractDeployment);
         await utils.setupOwnerPrivacy(owner, privacyContract, ownerKeys);

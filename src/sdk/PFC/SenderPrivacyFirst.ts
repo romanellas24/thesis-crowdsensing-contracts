@@ -1,8 +1,10 @@
 import {toUtf8Bytes} from "ethers";
-import {CipherProvider, KeyPair} from "./CipherProvider";
+import {CipherProvider, KeyPair} from "../utils/CipherProvider";
+import {HardhatEthersSigner} from "@nomicfoundation/hardhat-ethers/signers";
+import {DataSentTokenContract, PrivacyFirstContract} from "../../../typechain-types";
 
 /**
- * SDK wrapper for a data contributor (A).
+ * SDK wrapper for a data contributor (S).
  *
  * Lifecycle:
  *  1. `enroll()`                   -> key exchange with B through SC, obtains Kenc
@@ -11,20 +13,20 @@ import {CipherProvider, KeyPair} from "./CipherProvider";
  *
  * `setup()` is a convenience that calls enroll + payBond.
  */
-export class SenderPrivacyFirst {
+export class SenderPrivacyFirst<C extends PrivacyFirstContract = PrivacyFirstContract> {
 
-    private readonly signer: any;
-    private readonly contract: any;
-    private readonly dstToken: any;
+    private readonly signer: HardhatEthersSigner;
+    private readonly contract: C;
+    private readonly dstToken: DataSentTokenContract;
     private readonly cipher: CipherProvider;
     private keys: KeyPair | null = null;
     private kenc: string | null = null;
-    private _enrolled = false;
+    private _enrolled: boolean = false;
 
     constructor(
-        signer: any,
-        contract: any,
-        dstToken: any,
+        signer: HardhatEthersSigner,
+        contract: C,
+        dstToken: DataSentTokenContract,
         cipher: CipherProvider,
     ) {
         this.signer = signer;
@@ -63,34 +65,43 @@ export class SenderPrivacyFirst {
      * Requires the Owner to be listening (auto or manual).
      */
     async enroll(): Promise<void> {
+        let success = false;
+        let cleanup = () => {};
+
         this.keys = this.cipher.generateKeyPair();
 
-        // Listener must be registered BEFORE the tx so we don't miss the event
-        const waitForKey = new Promise<string>((resolve, reject) => {
-            const handler = (sender: string, encryptionKey: string) => {
-                if (sender !== this.signer.address) return;
-                // Cleanup to avoid leaks
-                this.contract.off("SenderEncryptionKeyReady", handler);
-                resolve(encryptionKey);
-            };
-            this.contract.on("SenderEncryptionKeyReady", handler);
-        });
+        try {
+            const event = this.contract.getEvent("SenderEncryptionKeyReady");
+            const waitForKey = new Promise<string>((resolve, reject) => {
+                const handler = (sender: string, encryptionKey: string) => {
+                    if (sender !== this.signer.address) return;
+                    cleanup();
+                    resolve(encryptionKey);
+                };
+                cleanup = () => this.contract.removeListener(event, handler);
+                this.contract.on(event, handler);
+            });
 
-        const ownerPubKey: string = await this.contract
-            .connect(this.signer)
-            .getInitiatorPublicKey();
+            const ownerPubKey: string = await this.contract
+                .connect(this.signer)
+                .getInitiatorPublicKey();
 
-        const encryptedPK = this.cipher.encryptStringHybrid(ownerPubKey, this.keys.publicKey);
-        await this.contract
-            .connect(this.signer)
-            .publishEncryptedSenderPublicKey(JSON.stringify(encryptedPK));
+            const encryptedPK = this.cipher.encryptStringHybrid(ownerPubKey, this.keys.publicKey);
+            await this.contract
+                .connect(this.signer)
+                .publishEncryptedSenderPublicKey(JSON.stringify(encryptedPK));
 
-        const encryptedKenc = await waitForKey;
-        this.kenc = this.cipher.decryptStringHybrid(
-            this.keys.privateKey,
-            JSON.parse(encryptedKenc),
-        );
-        this._enrolled = true;
+            const encryptedKenc = await waitForKey;
+            this.kenc = this.cipher.decryptStringHybrid(
+                this.keys.privateKey,
+                JSON.parse(encryptedKenc),
+            );
+            this._enrolled = true;
+            success = true;
+        } finally {
+            if (!success) cleanup();
+        }
+
     }
 
     // Bond

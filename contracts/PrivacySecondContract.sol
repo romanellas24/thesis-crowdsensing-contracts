@@ -18,11 +18,11 @@ contract PrivacySecondContract is PrivacyFirstContract {
     uint256 private constant SCALE = 1e18;
 
 
-    event DataRequiredVerificationKeyGeneration(uint256 indexed dataId);
-    event VerifierElectedForData(address indexed verifier, uint256 indexed dataId);
-    event VerifierVerificationBundleReady(address indexed verifier, uint256 indexed dataId, bytes bundle);
-    event VerifierEnrolled(address indexed verifier);
-    event VerifierKicked(address indexed verifier);
+    event DataRequiredVerificationKeyGeneration(uint256 indexed dataId); //Throwed by sender submission, listened by Owner
+    event VerifierElectedForData(address indexed verifier, uint256 indexed dataId); //Throwed by sender, listened by Onwer
+    event VerifierVerificationBundleReady(address indexed verifier, uint256 indexed dataId, bytes bundle); //Throwed by owner, listened by verifier
+    event VerifierEnrolled(address indexed verifier); //Throwed by owner
+    event VerifierKicked(address indexed verifier); //throwed by owner, listened Verifier.
     NovelParameters private _novelParams;
 
     constructor(string memory ownerPubKey, Config memory config, address dstContractAddress, NovelParameters memory novelParams)

@@ -35,6 +35,12 @@ describe("[REWARDS] PrivacyFirstContract", function () {
         return {privacyContract, dataSentToken};
     }
 
+    let env: Awaited<ReturnType<typeof contractDeployment>>;
+    beforeEach(async function () {
+        env = await loadFixture(contractDeployment);
+        await env.privacyContract.removeAllListeners();
+    });
+
     it("[REWARD]: Sender gets payout on VALID data", async function () {
         const {privacyContract, dataSentToken} = await loadFixture(readyForRewards);
         const senderBalanceBefore = await dataSentToken.balanceOf(sender1.address);

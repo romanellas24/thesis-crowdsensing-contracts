@@ -20,11 +20,10 @@ import {
     ownerKeys,
     validPosition,
     contractConfiguration,
-    oneDataRequiredDeployment
+    oneDataRequiredDeployment, contractDeployment
 } from "../testUtils/constants";
 
 describe("[CAMPAIGN LIFECYCLE] PrivacyFirstContract", function () {
-
 
 
     async function readyForLifecycle() {
@@ -41,6 +40,12 @@ describe("[CAMPAIGN LIFECYCLE] PrivacyFirstContract", function () {
         await utils.dismantlingOwnerPrivacy(owner, privacyContract);
         return {privacyContract, dataSentToken};
     }
+
+    let env: Awaited<ReturnType<typeof readyForLifecycle>>;
+    beforeEach(async function () {
+        env = await loadFixture(readyForLifecycle);
+        await env.privacyContract.removeAllListeners();
+    });
 
     it("[CAMPAIGN]: Auto-closes when both thresholds met", async function () {
         const {privacyContract} = await loadFixture(oneDataRequiredDeployment);

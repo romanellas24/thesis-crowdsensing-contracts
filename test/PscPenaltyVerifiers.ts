@@ -1,7 +1,7 @@
 import {expect} from "chai";
 import {ethers} from "hardhat";
 import {loadFixture} from "@nomicfoundation/hardhat-toolbox/network-helpers";
-import {contractConfiguration, ownerKeys, validPosition} from "../testUtils/constants";
+import {contractConfiguration, contractDeployment, ownerKeys, validPosition} from "../testUtils/constants";
 import cipher from "../testUtils/cipher";
 
 const VerificationResult = {SUCCESS: 0, FAILURE: 1, CANNOT_COMPLETE: 2};
@@ -124,6 +124,12 @@ describe("PrivacySecondContract - verifier penalties", () => {
     // kickVerifier (manual)
     describe("kickVerifier", () => {
 
+        let env: Awaited<ReturnType<typeof manualKickFixture>>;
+        beforeEach(async function () {
+            env = await loadFixture(manualKickFixture);
+            await env.sc.removeAllListeners();
+        });
+
         it("[PSC] reverts if called by non-owner", async () => {
             const {sc, sender, verifiers} = await loadFixture(manualKickFixture);
 
@@ -197,6 +203,12 @@ describe("PrivacySecondContract - verifier penalties", () => {
     // Auto-kick
     describe("automatic kick", () => {
 
+        let env: Awaited<ReturnType<typeof autoKickFixture>>;
+        beforeEach(async function () {
+            env = await loadFixture(autoKickFixture);
+            await env.sc.removeAllListeners();
+        });
+
         it("[PSC] kicks verifier automatically after reaching wrong votes threshold", async () => {
             const {sc, owner, sender, verifiers, verifierKeys} = await loadFixture(autoKickFixture);
 
@@ -238,6 +250,12 @@ describe("PrivacySecondContract - verifier penalties", () => {
 
     // Pardon mechanism
     describe("pardon mechanism", () => {
+
+        let env: Awaited<ReturnType<typeof pardonFixture>>;
+        beforeEach(async function () {
+            env = await loadFixture(pardonFixture);
+            await env.sc.removeAllListeners();
+        });
 
         // pardonFixture: kickAfterWrongVotes=5, pardonWrongVoteAfterRightVotes=2
         // V2 gets 1 wrong vote, then 2 correct votes => wrong count goes back to 0

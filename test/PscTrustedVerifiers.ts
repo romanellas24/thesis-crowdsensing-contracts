@@ -74,6 +74,12 @@ async function electedVerifierFixture() {
 
 describe("PrivacySecondContract - Trusted verifiers", () => {
 
+    let env: Awaited<ReturnType<typeof secondContractFixture>>;
+    beforeEach(async function () {
+        env = await loadFixture(secondContractFixture);
+        await env.sc.removeAllListeners();
+    });
+
     // publishVerifierDecryptionKey
     describe("[PSC] publishVerifierDecryptionKey", () => {
 
