@@ -1,7 +1,7 @@
-// rsa.ts
 import {generateKeyPairSync, publicEncrypt, privateDecrypt, randomBytes, createCipheriv, createDecipheriv} from "crypto";
 
 export default {
+
 
     generateKeyPair(): { publicKey: string, privateKey: string } {
         const {publicKey: publicKey, privateKey: secretKey} = generateKeyPairSync("rsa", {
