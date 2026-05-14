@@ -82,27 +82,7 @@ export class OwnerPrivacySecond extends OwnerPrivacyFirst<PrivacySecondContract>
      */
     override startListening(): void {
         if (this._listening) return;
-        this._listening = true;
-
-        // Sender enrollment - identical to PrivacyFirst
-        this.contract.on(
-            this.contract.getEvent("SenderEnrolledEvent"),
-            async (sender: string, key: string) => {
-                await this.handleSenderEnrollment(sender, key);
-            },
-        );
-
-        // Verifier enrollment - inherited from PrivacyFirst.
-        // VerifierEnrolledEvent(address, string) is still emitted by the inherited
-        // publishEncryptedVerifierPublicKey, carrying the verifier's encrypted PK.
-        // The PSC-specific behaviour lives entirely in the overridden
-        // handleVerifierEnrollment (decrypt PKV, cache locally, no Kdec emission).
-        this.contract.on(
-            this.contract.getEvent("VerifierEnrolledEvent"),
-            async (verifier: string, key: string) => {
-                await this.handleVerifierEnrollment(verifier, key);
-            },
-        );
+        super.startListening();
 
         // New in PrivacySecond: data submitted, key generation phase
         this.contract.on(
@@ -123,8 +103,7 @@ export class OwnerPrivacySecond extends OwnerPrivacyFirst<PrivacySecondContract>
 
     async stopListening(): Promise<void> {
         if (!this._listening) return;
-        await this.contract.off(this.contract.getEvent("SenderEnrolledEvent"));
-        await this.contract.off(this.contract.getEvent("VerifierEnrolledEvent"));
+        await super.stopListening();
         await this.contract.off(this.contract.getEvent("DataRequiredVerificationKeyGeneration"));
         await this.contract.off(this.contract.getEvent("VerifierElectedForData"));
         this._listening = false;
