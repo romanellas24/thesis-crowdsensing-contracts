@@ -84,11 +84,12 @@ async function main() {
 
     const _owner = await getOneSigner();
     const dataSentToken = await DataSentTokenFactory.connect(_owner).deploy(999_999_999);
+    const dataSentTokenAddress = await dataSentToken.getAddress();
 
     const privacyContract = await PSCFactory.connect(_owner).deploy(
         ownerKeys.publicKey,
         contractConfiguration,
-        await dataSentToken.getAddress(),
+        dataSentTokenAddress,
         defaultNovelParams,
     );
 

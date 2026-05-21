@@ -19,7 +19,7 @@ export class SenderPrivacyFirst<C extends PrivacyFirstContract = PrivacyFirstCon
     private readonly contract: C;
     private readonly dstToken: DataSentTokenContract;
     private readonly cipher: CipherProvider;
-    private keys: KeyPair | null = null;
+    private keys: KeyPair;
     private kenc: string | null = null;
     private _enrolled: boolean = false;
 
@@ -33,6 +33,7 @@ export class SenderPrivacyFirst<C extends PrivacyFirstContract = PrivacyFirstCon
         this.contract = contract;
         this.dstToken = dstToken;
         this.cipher = cipher;
+        this.keys = this.cipher.generateKeyPair();
     }
 
     // Getters
@@ -67,8 +68,6 @@ export class SenderPrivacyFirst<C extends PrivacyFirstContract = PrivacyFirstCon
     async enroll(): Promise<void> {
         let success = false;
         let cleanup = () => {};
-
-        this.keys = this.cipher.generateKeyPair();
 
         try {
             const event = this.contract.getEvent("SenderEncryptionKeyReady");
