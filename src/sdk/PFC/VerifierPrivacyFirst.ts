@@ -56,7 +56,7 @@ export class VerifierPrivacyFirst<C extends PrivacyFirstContract = PrivacyFirstC
     protected readonly dstToken: DataSentTokenContract;
     protected readonly cipher: CipherProvider;
     private verifyCallback: VerifyCallback;
-    protected keys: KeyPair | null = null;
+    protected keys: KeyPair;
     protected kdec: string | null = null;
     protected _enrolled: boolean = false;
 
@@ -72,6 +72,7 @@ export class VerifierPrivacyFirst<C extends PrivacyFirstContract = PrivacyFirstC
         this.dstToken = dstToken;
         this.cipher = cipher;
         this.verifyCallback = verifyCallback;
+        this.keys = this.cipher.generateKeyPair();
     }
 
     // Getters
@@ -106,11 +107,9 @@ export class VerifierPrivacyFirst<C extends PrivacyFirstContract = PrivacyFirstC
      *  4. Decrypt received payload -> store Kdec
      */
     async enroll(): Promise<void> {
-        this.keys = this.cipher.generateKeyPair();
 
         const event = this.contract.getEvent("VerifierDecryptionKeyReady");
-        let cleanup = () => {
-        };
+        let cleanup = () => {};
         let success = false;
 
 
