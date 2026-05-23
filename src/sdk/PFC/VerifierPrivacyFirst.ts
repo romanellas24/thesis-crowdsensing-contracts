@@ -178,11 +178,14 @@ export class VerifierPrivacyFirst<C extends PrivacyFirstContract = PrivacyFirstC
      * Returns the data id, the decrypted CID, and the result the callback chose.
      */
     async requestAndVerify(): Promise<{ dataId: number; decryptedCid: string; result: VerificationResult }> {
-        const {dataId, decryptedCid} = await this.requestAuthToVerify();
-        const result = this.verifyCallback(decryptedCid, dataId);
-        const tx = await this.submitResult(result);
-        await tx.wait();
-        return {dataId, decryptedCid, result};
+        try {
+            const {dataId, decryptedCid} = await this.requestAuthToVerify();
+            const result = this.verifyCallback(decryptedCid, dataId);
+            const tx = await this.submitResult(result);
+            await tx.wait();
+            return {dataId, decryptedCid, result};
+        } catch (ignored){}
+        return {dataId: -1, decryptedCid: "", result: VerificationResult.CANNOT_COMPLETE};
     }
 
     // Verification - low-level (manual control)

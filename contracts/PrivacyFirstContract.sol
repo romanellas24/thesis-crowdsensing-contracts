@@ -381,7 +381,7 @@ contract PrivacyFirstContract {
         if (_dataEntries[dataId].assignedChecks < _config.needs.checksRequired) {
             return (_dataEntries[dataId].assignedChecks, true);
         }
-        //No flot avail, return.
+        //No slot avail.
         return (0, false);
     }
 
