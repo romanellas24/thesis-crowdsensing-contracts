@@ -3,6 +3,7 @@ import {CipherProvider, KeyPair, VerificationResult, VerifyCallback} from "../ut
 import LoopStopReason from "../../sdk/utils/LoopStopReason";
 import {HardhatEthersSigner} from "@nomicfoundation/hardhat-ethers/signers";
 import {DataSentTokenContract, PrivacyFirstContract} from "../../../typechain-types";
+import VerifierNotElectedError from "../errors/VerifierNotElectedError";
 
 function createNotifier() {
     let pending = false;
@@ -184,8 +185,11 @@ export class VerifierPrivacyFirst<C extends PrivacyFirstContract = PrivacyFirstC
             const tx = await this.submitResult(result);
             await tx.wait();
             return {dataId, decryptedCid, result};
-        } catch (ignored){}
-        return {dataId: -1, decryptedCid: "", result: VerificationResult.CANNOT_COMPLETE};
+        } catch (e){
+            if(e instanceof VerifierNotElectedError)
+                return {dataId: -1, decryptedCid: "", result: VerificationResult.CANNOT_COMPLETE};
+            throw e;
+        }
     }
 
     // Verification - low-level (manual control)
@@ -228,7 +232,7 @@ export class VerifierPrivacyFirst<C extends PrivacyFirstContract = PrivacyFirstC
             }
         }
 
-        if (dataId === -1) throw new Error("VerifierElected event not found in receipt");
+        if (dataId === -1) throw new VerifierNotElectedError();
 
         const encryptedCidJson = toUtf8String(encryptedCidHex);
         const decryptedCid = this.cipher.decryptStringHybrid(
