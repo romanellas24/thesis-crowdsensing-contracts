@@ -18,7 +18,6 @@ export default {
         return ethers.SigningKey.recoverPublicKey(messageHashBytes, signature);
     },
 
-    // TODO CHIUDERE QUESTI LISTENER
     setupOwnerPrivacy: async (owner: HardhatEthersSigner, contract: PrivacyFirstContract, ownerKeys: { publicKey: string, privateKey: string }) => {
         const encryptionKeys = cipher.generateEncryptionKeys();
         // @ts-ignore

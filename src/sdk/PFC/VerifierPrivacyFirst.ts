@@ -1,20 +1,31 @@
 import {toUtf8String} from "ethers";
-import {CipherProvider, KeyPair, VerificationResult, VerifyCallback} from "../../sdk/utils/CipherProvider";
+import {CipherProvider, KeyPair, VerificationResult, VerifyCallback} from "../utils/CipherProvider";
 import LoopStopReason from "../../sdk/utils/LoopStopReason";
 import {HardhatEthersSigner} from "@nomicfoundation/hardhat-ethers/signers";
 import {DataSentTokenContract, PrivacyFirstContract} from "../../../typechain-types";
+import VerifierNotElectedError from "../errors/VerifierNotElectedError";
 
 function createNotifier() {
     let pending = false;
     let resolve: (() => void) | null = null;
     return {
         notify() {
-            if (resolve) { const r = resolve; resolve = null; r(); }
-            else { pending = true; }
+            if (resolve) {
+                const r = resolve;
+                resolve = null;
+                r();
+            } else {
+                pending = true;
+            }
         },
         wait(): Promise<void> {
-            if (pending) { pending = false; return Promise.resolve(); }
-            return new Promise(r => { resolve = r; });
+            if (pending) {
+                pending = false;
+                return Promise.resolve();
+            }
+            return new Promise(r => {
+                resolve = r;
+            });
         },
     };
 }
@@ -23,6 +34,7 @@ function createNotifier() {
 export interface VerifyLoopHandle {
     /** Gracefully stop the loop. Resolves `done` with ManualStop. */
     stop(): void;
+
     done: Promise<LoopStopReason>;
 }
 
@@ -45,7 +57,7 @@ export class VerifierPrivacyFirst<C extends PrivacyFirstContract = PrivacyFirstC
     protected readonly dstToken: DataSentTokenContract;
     protected readonly cipher: CipherProvider;
     private verifyCallback: VerifyCallback;
-    protected keys: KeyPair | null = null;
+    protected keys: KeyPair;
     protected kdec: string | null = null;
     protected _enrolled: boolean = false;
 
@@ -61,6 +73,7 @@ export class VerifierPrivacyFirst<C extends PrivacyFirstContract = PrivacyFirstC
         this.dstToken = dstToken;
         this.cipher = cipher;
         this.verifyCallback = verifyCallback;
+        this.keys = this.cipher.generateKeyPair();
     }
 
     // Getters
@@ -95,33 +108,45 @@ export class VerifierPrivacyFirst<C extends PrivacyFirstContract = PrivacyFirstC
      *  4. Decrypt received payload -> store Kdec
      */
     async enroll(): Promise<void> {
-        this.keys = this.cipher.generateKeyPair();
 
         const event = this.contract.getEvent("VerifierDecryptionKeyReady");
+        let cleanup = () => {};
+        let success = false;
+
+
         const waitForKey = new Promise<string>((resolve) => {
             const handler = (verifier: string, decryptionKey: string) => {
                 if (verifier !== this.signer.address) return;
                 this.contract.removeListener(event, handler);
+                cleanup();
                 resolve(decryptionKey);
             };
+            cleanup = () => this.contract.removeListener(event, handler);
             this.contract.on(event, handler);
         });
 
-        const ownerPubKey: string = await this.contract
-            .connect(this.signer)
-            .getInitiatorPublicKey();
 
-        const encryptedPK = this.cipher.encryptStringHybrid(ownerPubKey, this.keys.publicKey);
-        await this.contract
-            .connect(this.signer)
-            .publishEncryptedVerifierPublicKey(JSON.stringify(encryptedPK));
+        try {
+            const ownerPubKey: string = await this.contract
+                .connect(this.signer)
+                .getInitiatorPublicKey();
 
-        const encryptedKdec = await waitForKey;
-        this.kdec = this.cipher.decryptStringHybrid(
-            this.keys.privateKey,
-            JSON.parse(encryptedKdec),
-        );
-        this._enrolled = true;
+            const encryptedPK = this.cipher.encryptStringHybrid(ownerPubKey, this.keys.publicKey);
+            await this.contract
+                .connect(this.signer)
+                .publishEncryptedVerifierPublicKey(JSON.stringify(encryptedPK));
+
+
+            const encryptedKdec = await waitForKey;
+            this.kdec = this.cipher.decryptStringHybrid(
+                this.keys.privateKey,
+                JSON.parse(encryptedKdec),
+            );
+            this._enrolled = true;
+            success = true;
+        } finally {
+            if (!success) cleanup();
+        }
     }
 
     // Bond
@@ -133,6 +158,11 @@ export class VerifierPrivacyFirst<C extends PrivacyFirstContract = PrivacyFirstC
             .connect(this.signer)
             .approve(await this.contract.getAddress(), required);
         await this.contract.connect(this.signer).verifierPayBond();
+    }
+
+    async fullSetup(maxItems = Infinity): Promise<VerifyLoopHandle> {
+        await this.setup();
+        return this.startVerifyLoop(maxItems);
     }
 
     /** Convenience: enroll + payBond. */
@@ -149,11 +179,17 @@ export class VerifierPrivacyFirst<C extends PrivacyFirstContract = PrivacyFirstC
      * Returns the data id, the decrypted CID, and the result the callback chose.
      */
     async requestAndVerify(): Promise<{ dataId: number; decryptedCid: string; result: VerificationResult }> {
-        const {dataId, decryptedCid} = await this.requestAuthToVerify();
-        const result = this.verifyCallback(decryptedCid, dataId);
-        const tx = await this.submitResult(result);
-        await tx.wait();
-        return {dataId, decryptedCid, result};
+        try {
+            const {dataId, decryptedCid} = await this.requestAuthToVerify();
+            const result = this.verifyCallback(decryptedCid, dataId);
+            const tx = await this.submitResult(result);
+            await tx.wait();
+            return {dataId, decryptedCid, result};
+        } catch (e){
+            if(e instanceof VerifierNotElectedError)
+                return {dataId: -1, decryptedCid: "", result: VerificationResult.CANNOT_COMPLETE};
+            throw e;
+        }
     }
 
     // Verification - low-level (manual control)
@@ -196,7 +232,7 @@ export class VerifierPrivacyFirst<C extends PrivacyFirstContract = PrivacyFirstC
             }
         }
 
-        if (dataId === -1) throw new Error("VerifierElected event not found in receipt");
+        if (dataId === -1) throw new VerifierNotElectedError();
 
         const encryptedCidJson = toUtf8String(encryptedCidHex);
         const decryptedCid = this.cipher.decryptStringHybrid(
@@ -285,13 +321,15 @@ export class VerifierPrivacyFirst<C extends PrivacyFirstContract = PrivacyFirstC
         const done: Promise<LoopStopReason> = (async () => {
             try {
                 while (!stopped) {
-                    if (completed >= maxItems) return LoopStopReason.MaxItemsReached;
+                    if (completed >= maxItems)
+                        return LoopStopReason.MaxItemsReached;
 
                     try {
                         await this.requestAndVerify();
                         completed++;
                     } catch (e: any) {
-                        if (externalStopReason !== null) return externalStopReason;
+                        if (externalStopReason !== null)
+                            return externalStopReason;
 
                         const msg: string = e?.reason ?? e?.message ?? String(e);
 
@@ -307,10 +345,13 @@ export class VerifierPrivacyFirst<C extends PrivacyFirstContract = PrivacyFirstC
                         throw e;
                     }
                 }
+                if (externalStopReason !== null)
+                    return externalStopReason;
                 return LoopStopReason.ManualStop;
             } finally {
                 stopped = true;
-                this.contract.removeListener(event, onNewData);
+                await this.contract.removeListener(event, onNewData);
+                unsubscribeStopEvents();
             }
         })();
 
@@ -334,6 +375,7 @@ export class VerifierPrivacyFirst<C extends PrivacyFirstContract = PrivacyFirstC
     protected _subscribeLoopStopEvents(
         _requestStop: (reason: LoopStopReason) => void,
     ): () => void {
-        return () => {};
+        return () => {
+        };
     }
 }

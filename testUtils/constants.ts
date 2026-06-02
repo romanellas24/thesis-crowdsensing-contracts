@@ -8,7 +8,7 @@ export let owner: HardhatEthersSigner, interestedUser: HardhatEthersSigner,
     sender1: HardhatEthersSigner, sender2: HardhatEthersSigner, sender3: HardhatEthersSigner,
     verifier1: HardhatEthersSigner, verifier2: HardhatEthersSigner, verifier3: HardhatEthersSigner,
     verifier4: HardhatEthersSigner;
-export const ownerKeys = cipher.generateKeyPair();
+export const ownerKeys: { publicKey: string, privateKey: string } = cipher.generateKeyPair();
 
 export const contractConfiguration = {
     needs: {

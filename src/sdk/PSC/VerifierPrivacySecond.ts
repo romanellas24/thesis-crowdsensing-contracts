@@ -2,6 +2,7 @@ import {toUtf8String} from "ethers";
 import {VerifierPrivacyFirst} from "../PFC";
 import {PrivacySecondContract} from "../../../typechain-types";
 import LoopStopReason from "../utils/LoopStopReason";
+
 /**
  * SDK wrapper for a data verifier (V) operating on PrivacySecondContract.
  *
@@ -38,27 +39,39 @@ export class VerifierPrivacySecond extends VerifierPrivacyFirst<PrivacySecondCon
     override async enroll(): Promise<void> {
         this.keys = this.cipher.generateKeyPair();
         const event = this.contract.getEvent("VerifierEnrolled");
+        let cleanup = () => {
+        }
+        let success = false;
+
 
         const waitForEnrolled = new Promise<void>((resolve) => {
             const handler = (verifier: string) => {
                 if (verifier !== this.signer.address) return;
                 this.contract.removeListener(event, handler);
+                cleanup();
                 resolve();
             };
+            cleanup = () => this.contract.removeListener(event, handler);
             this.contract.on(event, handler);
         });
 
-        const ownerPubKey: string = await this.contract
-            .connect(this.signer)
-            .getInitiatorPublicKey();
+        try {
+            const ownerPubKey: string = await this.contract
+                .connect(this.signer)
+                .getInitiatorPublicKey();
 
-        const encryptedPK = this.cipher.encryptStringHybrid(ownerPubKey, this.keys.publicKey);
-        await this.contract
-            .connect(this.signer)
-            .publishEncryptedVerifierPublicKey(JSON.stringify(encryptedPK));
+            const encryptedPK = this.cipher.encryptStringHybrid(ownerPubKey, this.keys.publicKey);
+            await this.contract
+                .connect(this.signer)
+                .publishEncryptedVerifierPublicKey(JSON.stringify(encryptedPK));
 
-        await waitForEnrolled;
-        this._enrolled = true;
+
+            await waitForEnrolled;
+            this._enrolled = true;
+        } finally {
+            if (!success)
+                cleanup();
+        }
         // this.kdec intentionally left null - no global Kdec in this scheme
     }
 
@@ -80,10 +93,10 @@ export class VerifierPrivacySecond extends VerifierPrivacyFirst<PrivacySecondCon
      * It is not used by any downstream SDK method (submitResult is stateless
      * w.r.t. slot index; the SC resolves it internally via getActiveVerification).
      */
-    override async requestAuthToVerify(): Promise<{dataId: number; decryptedCid: string; slotIndex: number}> {
+    override async requestAuthToVerify(): Promise<{ dataId: number; decryptedCid: string; slotIndex: number }> {
         if (!this.keys) throw new Error("Not enrolled");
 
-        const { promise: decryptPromise, cancel } = this._waitForBundleAndDecrypt();
+        const {promise: decryptPromise, cancel} = this._waitForBundleAndDecrypt();
         let success = false;
 
         try {
@@ -102,14 +115,15 @@ export class VerifierPrivacySecond extends VerifierPrivacyFirst<PrivacySecondCon
                         dataId = Number(parsed.args[1]);
                         break;
                     }
-                } catch { /* log di un altro contratto */ }
+                } catch { /* log di un altro contratto */
+                }
             }
 
             if (dataId === -1) throw new Error("VerifierElected event not found in receipt");
 
             const decryptedCid = await decryptPromise;
             success = true;   // arrivati qui senza throw -> l'handler ha già fatto cleanup da solo
-            return { dataId, decryptedCid, slotIndex: -1 };
+            return {dataId, decryptedCid, slotIndex: -1};
         } finally {
             if (!success) cancel();   // throw lungo il percorso -> puliamo noi
         }
@@ -154,7 +168,8 @@ export class VerifierPrivacySecond extends VerifierPrivacyFirst<PrivacySecondCon
      */
     private _waitForBundleAndDecrypt(): { promise: Promise<string>; cancel: () => void } {
         const event = this.contract.getEvent("VerifierVerificationBundleReady");
-        let cleanup = () => {};
+        let cleanup = () => {
+        };
 
         const promise = new Promise<string>((resolve, reject) => {
             const handler = (verifier: string, _dataId: bigint, bundleHex: string) => {
@@ -166,18 +181,20 @@ export class VerifierPrivacySecond extends VerifierPrivacyFirst<PrivacySecondCon
                         this.keys!.privateKey,
                         JSON.parse(envelopeJson),
                     );
-                    const { encryptedCid, kdec } = JSON.parse(bundleContent);
+                    const {encryptedCid, kdec} = JSON.parse(bundleContent);
                     resolve(this.cipher.decryptStringHybrid(
                         kdec,
                         JSON.parse(toUtf8String(encryptedCid)),
                     ));
-                } catch (e) { reject(e); }
+                } catch (e) {
+                    reject(e);
+                }
             };
 
             cleanup = () => this.contract.removeListener(event, handler);
             this.contract.on(event, handler);
         });
 
-        return { promise, cancel: () => cleanup() };
+        return {promise, cancel: () => cleanup()};
     }
 }

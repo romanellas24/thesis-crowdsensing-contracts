@@ -15,6 +15,12 @@ require('dotenv').config();
 
 describe("[BOND MECHANISM] PrivacyFirstContract", function () {
 
+    let env: Awaited<ReturnType<typeof contractDeployment>>;
+    beforeEach(async function () {
+        env = await loadFixture(contractDeployment);
+        await env.privacyContract.removeAllListeners();
+    });
+
     async function enrolledSenderNoBond() {
         const {privacyContract, dataSentToken} = await contractDeployment();
         await utils.setupOwnerPrivacy(owner, privacyContract, ownerKeys);
@@ -85,7 +91,7 @@ describe("[BOND MECHANISM] PrivacyFirstContract", function () {
         const cid = ethers.toUtf8Bytes("QmEncryptedCid_1");
         await expect(
             privacyContract.connect(sender1).publishIpfsCid(cid, validPosition)
-        ).to.be.revertedWith("Insufficient DST balance in bond, please refund");
+        ).to.be.revertedWith("Insufficient DST balance in bond");
     });
 
     it("[BOND]: Sender bond restored after VALID verification", async function () {
@@ -154,7 +160,7 @@ describe("[BOND MECHANISM] PrivacyFirstContract", function () {
         const {privacyContract} = await loadFixture(enrolledVerifierNoBond);
         await expect(
             privacyContract.connect(verifier1).requestAuthToVerify()
-        ).to.be.revertedWith("Insufficient DST balance in bond, please refund");
+        ).to.be.revertedWith("Insufficient DST balance in bond");
     });
 
     it("[BOND]: Verifier bond restored on correct vote", async function () {

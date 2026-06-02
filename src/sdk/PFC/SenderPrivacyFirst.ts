@@ -2,6 +2,8 @@ import {toUtf8Bytes} from "ethers";
 import {CipherProvider, KeyPair} from "../utils/CipherProvider";
 import {HardhatEthersSigner} from "@nomicfoundation/hardhat-ethers/signers";
 import {DataSentTokenContract, PrivacyFirstContract} from "../../../typechain-types";
+import cipher from "../../../testUtils/cipher";
+import {success} from "hardhat/internal/core/config/config-validation";
 
 /**
  * SDK wrapper for a data contributor (S).
@@ -18,8 +20,8 @@ export class SenderPrivacyFirst<C extends PrivacyFirstContract = PrivacyFirstCon
     private readonly signer: HardhatEthersSigner;
     private readonly contract: C;
     private readonly dstToken: DataSentTokenContract;
-    private readonly cipher: CipherProvider;
-    private keys: KeyPair | null = null;
+    private readonly _cipher: CipherProvider;
+    private keys: KeyPair;
     private kenc: string | null = null;
     private _enrolled: boolean = false;
 
@@ -32,7 +34,8 @@ export class SenderPrivacyFirst<C extends PrivacyFirstContract = PrivacyFirstCon
         this.signer = signer;
         this.contract = contract;
         this.dstToken = dstToken;
-        this.cipher = cipher;
+        this._cipher = cipher;
+        this.keys = this._cipher.generateKeyPair();
     }
 
     // Getters
@@ -68,9 +71,6 @@ export class SenderPrivacyFirst<C extends PrivacyFirstContract = PrivacyFirstCon
         let success = false;
         let cleanup = () => {};
 
-        this.keys = this.cipher.generateKeyPair();
-
-        // Listener must be registered BEFORE the tx so we don't miss the event
         try {
             const event = this.contract.getEvent("SenderEncryptionKeyReady");
             const waitForKey = new Promise<string>((resolve, reject) => {
@@ -87,13 +87,13 @@ export class SenderPrivacyFirst<C extends PrivacyFirstContract = PrivacyFirstCon
                 .connect(this.signer)
                 .getInitiatorPublicKey();
 
-            const encryptedPK = this.cipher.encryptStringHybrid(ownerPubKey, this.keys.publicKey);
+            const encryptedPK = this._cipher.encryptStringHybrid(ownerPubKey, this.keys.publicKey);
             await this.contract
                 .connect(this.signer)
                 .publishEncryptedSenderPublicKey(JSON.stringify(encryptedPK));
 
             const encryptedKenc = await waitForKey;
-            this.kenc = this.cipher.decryptStringHybrid(
+            this.kenc = this._cipher.decryptStringHybrid(
                 this.keys.privateKey,
                 JSON.parse(encryptedKenc),
             );
@@ -120,6 +120,10 @@ export class SenderPrivacyFirst<C extends PrivacyFirstContract = PrivacyFirstCon
         await this.contract.connect(this.signer).senderPayBond();
     }
 
+    get cipher(): CipherProvider {
+        return this._cipher;
+    }
+
     /** Convenience: enroll + payBond in one call. */
     async setup(): Promise<void> {
         await this.enroll();
@@ -136,7 +140,7 @@ export class SenderPrivacyFirst<C extends PrivacyFirstContract = PrivacyFirstCon
     async publishData(plainCid: string, position: any) {
         if (!this.kenc) throw new Error("Not enrolled - Kenc not available");
 
-        const encrypted = this.cipher.encryptStringHybrid(this.kenc, plainCid);
+        const encrypted = this._cipher.encryptStringHybrid(this.kenc, plainCid);
         const cidBytes = toUtf8Bytes(JSON.stringify(encrypted));
         return this.contract.connect(this.signer).publishIpfsCid(cidBytes, position);
     }

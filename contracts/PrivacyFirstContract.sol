@@ -24,7 +24,6 @@ contract PrivacyFirstContract {
     string private _ownerPubKey;
     Config internal _config;
     //users that have enrolled (waiting for B's encryption key publishing)
-    mapping(address => bool) private _senderEnrolledRequest;
     mapping(address => bool) internal _verifierEnrolledRequest;
     //Effective enrolled users
     mapping(address => bool) internal _senders;
@@ -125,8 +124,7 @@ contract PrivacyFirstContract {
 
     function publishEncryptedSenderPublicKey(string calldata encryptedPubKey) public {
         require(_campaignOpen, "Campaign is closed");
-        require(!_senderEnrolledRequest[msg.sender], "Sender has already requested to join");
-        _senderEnrolledRequest[msg.sender] = true;
+        require(!_senders[msg.sender], "Sender has already joined");
         emit SenderEnrolledEvent(msg.sender, encryptedPubKey);
     }
 
@@ -141,7 +139,7 @@ contract PrivacyFirstContract {
             validData: 0,
             invalidData: 0
         });
-        delete _senderEnrolledRequest[sender];
+
         emit SenderEncryptionKeyReady(sender, encryptionKey);
     }
 
@@ -172,7 +170,7 @@ contract PrivacyFirstContract {
         require(_senders[msg.sender], "Only senders allowed to send data.");
         require(position.isValid(), "Invalid Coordinates");
         require(_senderInformation[msg.sender].dataSubmitted < _config.needs.maxDataPerSender || _config.needs.maxDataPerSender == 0, "Max data limit reached");
-        require(_senderInformation[msg.sender].bondBalance >= _config.rewardConfig.dataSenderBondPerData || _config.needs.maxDataPerSender == 0, "Insufficient DST balance in bond, please refund");
+        require(_senderInformation[msg.sender].bondBalance >= _config.rewardConfig.dataSenderBondPerData || _config.needs.maxDataPerSender == 0, "Insufficient DST balance in bond");
 
         PackedPosition memory packed = position.packCoordinates();
         (uint16 chunkIndex, bool inside) = _getChunkIndex(packed);
@@ -214,7 +212,7 @@ contract PrivacyFirstContract {
         require(_campaignOpen, "Campaign is closed");
         require(_verifiers[msg.sender], "Only verifiers allowed");
         require(!_verifierInformation[msg.sender].isVerifying, "Already verifying data");
-        require(_verifierInformation[msg.sender].bondBalance >= _config.rewardConfig.dataVerifierBondPerData, "Insufficient DST balance in bond, please refund");
+        require(_verifierInformation[msg.sender].bondBalance >= _config.rewardConfig.dataVerifierBondPerData, "Insufficient DST balance in bond");
 
         for (uint256 i = 0; i < _pendingDataIds.length; i++) {
             uint256 dataIndex = _pendingDataIds[i];
@@ -383,7 +381,7 @@ contract PrivacyFirstContract {
         if (_dataEntries[dataId].assignedChecks < _config.needs.checksRequired) {
             return (_dataEntries[dataId].assignedChecks, true);
         }
-        //No flot avail, return.
+        //No slot avail.
         return (0, false);
     }
 
@@ -546,6 +544,10 @@ contract PrivacyFirstContract {
             statuses[i] = _dataEntries[i].status;
             chunks[i] = _dataEntries[i].chunkIndex;
         }
+    }
+
+    function getConfig() external view returns (Config memory) {
+        return _config;
     }
 
 }
