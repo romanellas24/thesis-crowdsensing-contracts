@@ -137,7 +137,8 @@ contract PrivacyFirstContract {
             bondBalance: 0,
             dataSubmitted: 0,
             validData: 0,
-            invalidData: 0
+            invalidData: 0,
+            bondPaid: false
         });
 
         emit SenderEncryptionKeyReady(sender, encryptionKey);
@@ -315,9 +316,11 @@ contract PrivacyFirstContract {
 
     function senderPayBond() external {
         require(_senders[msg.sender], "Not a sender");
+        require(!_senderInformation[msg.sender].bondPaid, "Bond already paid");
         _dstContract.transferFrom(msg.sender, address(this), _requiredSenderBond);
         _senderSupplyBond = _senderSupplyBond + _requiredSenderBond;
-        _senderInformation[msg.sender].bondBalance = _senderInformation[msg.sender].bondBalance + _requiredSenderBond;
+        _senderInformation[msg.sender].bondBalance = _requiredSenderBond;
+        _senderInformation[msg.sender].bondPaid = true;
     }
 
     function getRequiredSenderBond() external view returns (uint) {
