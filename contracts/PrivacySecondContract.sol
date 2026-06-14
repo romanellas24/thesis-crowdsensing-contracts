@@ -18,7 +18,7 @@ contract PrivacySecondContract is PrivacyFirstContract {
     uint256 private constant SCALE = 1e18;
 
 
-    event DataRequiredVerificationKeyGeneration(uint256 indexed dataId); //Throwed by sender submission, listened by Owner
+    event DataRequiredVerificationKeyGeneration(uint256 indexed dataId, bytes encryptedCid); //Throwed by sender submission, listened by Owner
     event VerifierElectedForData(address indexed verifier, uint256 indexed dataId); //Throwed by sender, listened by Onwer
     event VerifierVerificationBundleReady(address indexed verifier, uint256 indexed dataId, bytes bundle); //Throwed by owner, listened by verifier
     event VerifierEnrolled(address indexed verifier); //Throwed by owner
@@ -81,7 +81,7 @@ contract PrivacySecondContract is PrivacyFirstContract {
         _senderInformation[msg.sender].dataSubmitted++;
 
         _awaitingKeyGeneration[_dataCount] = true;
-        emit DataRequiredVerificationKeyGeneration(_dataCount);
+        emit DataRequiredVerificationKeyGeneration(_dataCount, encryptedCid);
 
         _dataCount++;
 

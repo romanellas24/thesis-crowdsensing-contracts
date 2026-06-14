@@ -1,4 +1,4 @@
-import {toUtf8Bytes} from "ethers";
+import {toUtf8Bytes, toUtf8String} from "ethers";
 import {CipherProvider, KeyPair, OwnerPrivacyFirst} from "../PFC";
 import {HardhatEthersSigner} from "@nomicfoundation/hardhat-ethers/signers";
 import {DataSentTokenContract, PrivacySecondContract} from "../../../typechain-types";
@@ -87,8 +87,8 @@ export class OwnerPrivacySecond extends OwnerPrivacyFirst<PrivacySecondContract>
         // New in PrivacySecond: data submitted, key generation phase
         this.contract.on(
             this.contract.getEvent("DataRequiredVerificationKeyGeneration"),
-            async (dataId: bigint, event: any) => {
-                await this.handleDataRequiresKey(Number(dataId), event);
+            async (dataId: bigint, encryptedCid: string, event: any) => {
+                await this.handleDataRequiresKey(Number(dataId), toUtf8String(encryptedCid));
             },
         );
 
@@ -149,11 +149,7 @@ export class OwnerPrivacySecond extends OwnerPrivacyFirst<PrivacySecondContract>
      * Cache ordering is safe: a verifier can only be elected after
      * notifyVerificationKeyReady succeeds, which happens here after caching.
      */
-    async handleDataRequiresKey(dataId: number, event: any): Promise<void> {
-        const tx = await event.log.getTransaction();
-        const decoded = this.contract.interface.parseTransaction({data: tx.data});
-        // publishIpfsCid(bytes encryptedCid, GlobalPosition position)
-        const encryptedCid: string = decoded!.args[0];
+    async handleDataRequiresKey(dataId: number, encryptedCid: string): Promise<void> {
         this.encryptedCidCache.set(dataId, encryptedCid);
 
         await this.contract
