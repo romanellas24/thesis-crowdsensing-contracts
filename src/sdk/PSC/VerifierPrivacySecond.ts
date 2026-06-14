@@ -184,7 +184,7 @@ export class VerifierPrivacySecond extends VerifierPrivacyFirst<PrivacySecondCon
                     const {encryptedCid, kdec} = JSON.parse(bundleContent);
                     resolve(this.cipher.decryptStringHybrid(
                         kdec,
-                        JSON.parse(toUtf8String(encryptedCid)),
+                        JSON.parse(encryptedCid),
                     ));
                 } catch (e) {
                     reject(e);

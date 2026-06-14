@@ -129,7 +129,7 @@ describe("PrivacySecondContract - Trusted verifiers", () => {
 
             await expect(sc.connect(sender).publishIpfsCid(encryptedCid, validPosition))
                 .to.emit(sc, "DataRequiredVerificationKeyGeneration")
-                .withArgs(0);
+                .withArgs(0, encryptedCid);
         });
 
         it("[PSC] does NOT emit DataVerificationRequestedEvent", async () => {

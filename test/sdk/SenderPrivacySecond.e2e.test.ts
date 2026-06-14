@@ -105,7 +105,7 @@ describe("[E2E] SenderPrivacySecond - PrivacySecondContract", function () {
             expect(encryptedHex, "Owner did not cache the encrypted CID").to.exist;
 
             const ownerKdec = (env.owner as any).encryptionKeys.decryptionKey;
-            const envelopeJson = ethers.toUtf8String(encryptedHex!);
+            const envelopeJson = encryptedHex!;
             const decrypted = cipher.decryptStringHybrid(ownerKdec, JSON.parse(envelopeJson));
             expect(decrypted).to.equal(plainCid);
         });
