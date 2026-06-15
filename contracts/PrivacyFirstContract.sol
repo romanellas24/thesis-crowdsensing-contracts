@@ -204,7 +204,7 @@ contract PrivacyFirstContract {
 
     }
 
-    function _addToPending(uint256 dataId) internal {
+    function _addToPending(uint256 dataId) internal virtual {
         _pendingIndex[dataId] = _pendingDataIds.length;
         _pendingDataIds.push(dataId);
     }
@@ -447,7 +447,7 @@ contract PrivacyFirstContract {
         }
     }
 
-    function _removeFromPending(uint256 dataId) internal {
+    function _removeFromPending(uint256 dataId) internal virtual {
         uint256 idx = _pendingIndex[dataId];
         uint256 lastId = _pendingDataIds[_pendingDataIds.length - 1];
         _pendingDataIds[idx] = lastId;
