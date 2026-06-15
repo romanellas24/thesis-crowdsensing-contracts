@@ -7,7 +7,7 @@ import utils from "../testUtils/utils";
 
 require('dotenv').config();
 
-import {contractDeployment, sender1, verifier1, owner, ownerKeys} from "../testUtils/constants";
+import {contractDeployment, sender1, sender2, verifier1, owner, ownerKeys} from "../testUtils/constants";
 
 describe("[INIT PHASE - SENDER] PrivacyFirstContract", function () {
 
@@ -84,9 +84,9 @@ describe("[INIT PHASE - SENDER] PrivacyFirstContract", function () {
     it("[SENDER]: Sender1 duplicate the enrollment request", async function () {
         const {privacyContract} = await loadFixture(contractDeployment);
         await utils.setupOwnerPrivacy(owner, privacyContract, ownerKeys);
-        await utils.setupSenderPrivacy(sender1, privacyContract);
+        await utils.setupSenderPrivacy(sender2, privacyContract);
         expect(
-            utils.setupSenderPrivacy(sender1, privacyContract)
+            utils.setupSenderPrivacy(sender2, privacyContract)
         ).to.be.revertedWith("Sender has already joined")
         await utils.dismantlingOwnerPrivacy(owner, privacyContract);
     });

@@ -1,4 +1,3 @@
-// rsa.ts
 import {generateKeyPairSync, publicEncrypt, privateDecrypt, randomBytes, createCipheriv, createDecipheriv} from "crypto";
 
 export default {
@@ -14,24 +13,11 @@ export default {
 
     generateEncryptionKeys(): { encryptionKey: string, decryptionKey: string } {
         const {publicKey: encryptionKey, privateKey: decryptionKey} = generateKeyPairSync("rsa", {
-            modulusLength: 2048, // 3072/4096 for higher security
+            modulusLength: 2048,
             publicKeyEncoding: {type: "spki", format: "pem"},
             privateKeyEncoding: {type: "pkcs8", format: "pem"}
         });
         return {encryptionKey: encryptionKey, decryptionKey: decryptionKey};
-    },
-    rsaEncrypt(encryptionKey: string, data: Buffer | string): Buffer {
-        return publicEncrypt(
-            {key: encryptionKey, padding: 4, oaepHash: "sha256"}, // RSA_PKCS1_OAEP_PADDING = 4
-            Buffer.isBuffer(data) ? data : Buffer.from(data)
-        );
-    },
-
-    rsaDecrypt(decryptionKey: string, ciphertext: Buffer): Buffer {
-        return privateDecrypt(
-            {key: decryptionKey, padding: 4, oaepHash: "sha256"},
-            ciphertext
-        );
     },
 
     encryptStringHybrid(key: string, plaintext: string) : {

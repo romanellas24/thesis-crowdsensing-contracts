@@ -137,7 +137,8 @@ contract PrivacyFirstContract {
             bondBalance: 0,
             dataSubmitted: 0,
             validData: 0,
-            invalidData: 0
+            invalidData: 0,
+            bondPaid: false
         });
 
         emit SenderEncryptionKeyReady(sender, encryptionKey);
@@ -170,7 +171,7 @@ contract PrivacyFirstContract {
         require(_senders[msg.sender], "Only senders allowed to send data.");
         require(position.isValid(), "Invalid Coordinates");
         require(_senderInformation[msg.sender].dataSubmitted < _config.needs.maxDataPerSender || _config.needs.maxDataPerSender == 0, "Max data limit reached");
-        require(_senderInformation[msg.sender].bondBalance >= _config.rewardConfig.dataSenderBondPerData || _config.needs.maxDataPerSender == 0, "Insufficient DST balance in bond, please refund");
+        require(_senderInformation[msg.sender].bondBalance >= _config.rewardConfig.dataSenderBondPerData || _config.needs.maxDataPerSender == 0, "Insufficient DST balance in bond");
 
         PackedPosition memory packed = position.packCoordinates();
         (uint16 chunkIndex, bool inside) = _getChunkIndex(packed);
@@ -212,7 +213,7 @@ contract PrivacyFirstContract {
         require(_campaignOpen, "Campaign is closed");
         require(_verifiers[msg.sender], "Only verifiers allowed");
         require(!_verifierInformation[msg.sender].isVerifying, "Already verifying data");
-        require(_verifierInformation[msg.sender].bondBalance >= _config.rewardConfig.dataVerifierBondPerData, "Insufficient DST balance in bond, please refund");
+        require(_verifierInformation[msg.sender].bondBalance >= _config.rewardConfig.dataVerifierBondPerData, "Insufficient DST balance in bond");
 
         for (uint256 i = 0; i < _pendingDataIds.length; i++) {
             uint256 dataIndex = _pendingDataIds[i];
@@ -315,9 +316,11 @@ contract PrivacyFirstContract {
 
     function senderPayBond() external {
         require(_senders[msg.sender], "Not a sender");
+        require(!_senderInformation[msg.sender].bondPaid, "Bond already paid");
         _dstContract.transferFrom(msg.sender, address(this), _requiredSenderBond);
         _senderSupplyBond = _senderSupplyBond + _requiredSenderBond;
-        _senderInformation[msg.sender].bondBalance = _senderInformation[msg.sender].bondBalance + _requiredSenderBond;
+        _senderInformation[msg.sender].bondBalance = _requiredSenderBond;
+        _senderInformation[msg.sender].bondPaid = true;
     }
 
     function getRequiredSenderBond() external view returns (uint) {
@@ -381,7 +384,7 @@ contract PrivacyFirstContract {
         if (_dataEntries[dataId].assignedChecks < _config.needs.checksRequired) {
             return (_dataEntries[dataId].assignedChecks, true);
         }
-        //No flot avail, return.
+        //No slot avail.
         return (0, false);
     }
 

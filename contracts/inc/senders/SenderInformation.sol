@@ -6,4 +6,5 @@ pragma solidity ^0.8.24;
         uint dataSubmitted;
         uint validData;
         uint invalidData;
+        bool bondPaid;
     }

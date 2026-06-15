@@ -1,9 +1,7 @@
-import {toUtf8Bytes} from "ethers";
+import {toUtf8Bytes, toUtf8String} from "ethers";
 import {CipherProvider, KeyPair, OwnerPrivacyFirst} from "../PFC";
 import {HardhatEthersSigner} from "@nomicfoundation/hardhat-ethers/signers";
 import {DataSentTokenContract, PrivacySecondContract} from "../../../typechain-types";
-import {ownerKeys} from "../../../testUtils/constants";
-import cipher from "../../../testUtils/cipher";
 
 /**
  * SDK wrapper for the campaign initiator (B) operating on PrivacySecondContract.
@@ -84,33 +82,13 @@ export class OwnerPrivacySecond extends OwnerPrivacyFirst<PrivacySecondContract>
      */
     override startListening(): void {
         if (this._listening) return;
-        this._listening = true;
-
-        // Sender enrollment - identical to PrivacyFirst
-        this.contract.on(
-            this.contract.getEvent("SenderEnrolledEvent"),
-            async (sender: string, key: string) => {
-                await this.handleSenderEnrollment(sender, key);
-            },
-        );
-
-        // Verifier enrollment - inherited from PrivacyFirst.
-        // VerifierEnrolledEvent(address, string) is still emitted by the inherited
-        // publishEncryptedVerifierPublicKey, carrying the verifier's encrypted PK.
-        // The PSC-specific behaviour lives entirely in the overridden
-        // handleVerifierEnrollment (decrypt PKV, cache locally, no Kdec emission).
-        this.contract.on(
-            this.contract.getEvent("VerifierEnrolledEvent"),
-            async (verifier: string, key: string) => {
-                await this.handleVerifierEnrollment(verifier, key);
-            },
-        );
+        super.startListening();
 
         // New in PrivacySecond: data submitted, key generation phase
         this.contract.on(
             this.contract.getEvent("DataRequiredVerificationKeyGeneration"),
-            async (dataId: bigint, event: any) => {
-                await this.handleDataRequiresKey(Number(dataId), event);
+            async (dataId: bigint, encryptedCid: string, event: any) => {
+                await this.handleDataRequiresKey(Number(dataId), toUtf8String(encryptedCid));
             },
         );
 
@@ -125,8 +103,7 @@ export class OwnerPrivacySecond extends OwnerPrivacyFirst<PrivacySecondContract>
 
     async stopListening(): Promise<void> {
         if (!this._listening) return;
-        await this.contract.off(this.contract.getEvent("SenderEnrolledEvent"));
-        await this.contract.off(this.contract.getEvent("VerifierEnrolledEvent"));
+        await super.stopListening();
         await this.contract.off(this.contract.getEvent("DataRequiredVerificationKeyGeneration"));
         await this.contract.off(this.contract.getEvent("VerifierElectedForData"));
         this._listening = false;
@@ -172,11 +149,7 @@ export class OwnerPrivacySecond extends OwnerPrivacyFirst<PrivacySecondContract>
      * Cache ordering is safe: a verifier can only be elected after
      * notifyVerificationKeyReady succeeds, which happens here after caching.
      */
-    async handleDataRequiresKey(dataId: number, event: any): Promise<void> {
-        const tx = await event.log.getTransaction();
-        const decoded = this.contract.interface.parseTransaction({data: tx.data});
-        // publishIpfsCid(bytes encryptedCid, GlobalPosition position)
-        const encryptedCid: string = decoded!.args[0];
+    async handleDataRequiresKey(dataId: number, encryptedCid: string): Promise<void> {
         this.encryptedCidCache.set(dataId, encryptedCid);
 
         await this.contract
