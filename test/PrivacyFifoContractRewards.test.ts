@@ -7,13 +7,13 @@ import utils from "../testUtils/utils";
 
 require('dotenv').config();
 
-import {contractDeployment, sender1, verifier1, verifier2, verifier3, verifier4, owner, ownerKeys, validPosition, contractConfiguration} from "../testUtils/constants";
+import {contractDeploymentFifo, sender1, verifier1, verifier2, verifier3, verifier4, owner, ownerKeys, validPosition, contractConfiguration} from "../testUtils/constants";
 import {bigint} from "hardhat/internal/core/params/argumentTypes";
 
 describe("[REWARDS] PrivacyFifoContract", function () {
 
     async function readyForRewards() {
-        const {privacyContract, dataSentToken} = await contractDeployment();
+        const {privacyContract, dataSentToken} = await contractDeploymentFifo();
 
         await dataSentToken.connect(owner).approve(
             await privacyContract.getAddress(),
@@ -35,9 +35,9 @@ describe("[REWARDS] PrivacyFifoContract", function () {
         return {privacyContract, dataSentToken};
     }
 
-    let env: Awaited<ReturnType<typeof contractDeployment>>;
+    let env: Awaited<ReturnType<typeof contractDeploymentFifo>>;
     beforeEach(async function () {
-        env = await loadFixture(contractDeployment);
+        env = await loadFixture(contractDeploymentFifo);
         await env.privacyContract.removeAllListeners();
     });
 

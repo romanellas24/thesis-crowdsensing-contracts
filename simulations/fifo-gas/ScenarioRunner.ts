@@ -7,7 +7,6 @@ import {
     chunkForCid,
     positionForChunk,
 } from "../shared/SimulationConfig";
-import type {ContractTransaction, ContractTransactionResponse} from "ethers";
 import fs from "node:fs";
 
 const HARDHAT_MNEMONIC = "test test test test test test test test test test test junk";
@@ -105,8 +104,8 @@ export class ScenarioRunner {
         await this.dstToken.waitForDeployment();
 
         // Privacy Contract
-        const PCFactory = await ethers.getContractFactory("PrivacyFirstContract");
-        const deployTx = await PCFactory.deploy(
+        const PCFactoryFifo = await ethers.getContractFactory("PrivacyFirstContractFifo");
+        const deployTx = await PCFactoryFifo.deploy(
             this.ownerKeys.publicKey,
             this.config,
             await this.dstToken.getAddress(),
@@ -267,7 +266,6 @@ export class ScenarioRunner {
         for (let i = 0; i < txs.length; i++) {
             const r = await txs[i].wait();
             this.tracker.record("data_submission", r!.gasUsed, "sender", senderIndices[i]);
-            this.tracker.recordDataSent(senderIndices[i]);
         }
     }
 
@@ -295,9 +293,11 @@ export class ScenarioRunner {
 
                     totalChecks++;
                     pendingExists = true;
-                } catch {
-                    // "No data available for verification" or "Already verifying"
-                    // This verifier has nothing to do right now - skip
+                } catch (e: any) {
+                    if (!e.message?.includes("No data available") &&
+                        !e.message?.includes("Already verifying")) {
+                        this.log(`  Unexpected error V${vi}: ${e.message}`);
+                    }
                 }
             }
 

@@ -15,15 +15,14 @@
  */
 
 import * as fs from "fs";
-import {ReadStream} from "fs";
 import {ethers} from "hardhat";
 import {generateScenarios} from "../shared/SimulationConfig";
 import {CSV_HEADER, RAW_CSV_HEADER} from "../shared/GasTracker";
 import {ScenarioRunner} from "./ScenarioRunner";
 
 
-const OUTPUT_FILE = "results/gas_simulation_results.csv";
-const RAW_OUTPUT_FILE = "results/gas_simulation_results_raw.csv";
+const OUTPUT_FILE = "results/fifo_gas_simulation_results.csv";
+const RAW_OUTPUT_FILE = "results/fifo_gas_simulation_results_raw.csv";
 
 function getCompletedScenarios(filePath: string): Set<string> {
     const completed = new Set<string>();

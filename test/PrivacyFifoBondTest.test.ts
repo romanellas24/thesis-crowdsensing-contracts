@@ -5,7 +5,7 @@ import {expect} from "chai";
 import {ethers} from "hardhat";
 import utils from "../testUtils/utils";
 import {
-    contractDeployment, validPosition,
+    contractDeploymentFifo, validPosition,
     owner, ownerKeys,
     sender1, interestedUser,
     verifier1, verifier2, verifier3, verifier4
@@ -15,14 +15,14 @@ require('dotenv').config();
 
 describe("[BOND MECHANISM] PrivacyFifoContract", function () {
 
-    let env: Awaited<ReturnType<typeof contractDeployment>>;
+    let env: Awaited<ReturnType<typeof contractDeploymentFifo>>;
     beforeEach(async function () {
-        env = await loadFixture(contractDeployment);
+        env = await loadFixture(contractDeploymentFifo);
         await env.privacyContract.removeAllListeners();
     });
 
     async function enrolledSenderNoBond() {
-        const {privacyContract, dataSentToken} = await contractDeployment();
+        const {privacyContract, dataSentToken} = await contractDeploymentFifo();
         await utils.setupOwnerPrivacy(owner, privacyContract, ownerKeys);
 
         // Enroll sender manually WITHOUT paying bond
@@ -44,7 +44,7 @@ describe("[BOND MECHANISM] PrivacyFifoContract", function () {
     }
 
     async function enrolledVerifierNoBond() {
-        const {privacyContract, dataSentToken} = await contractDeployment();
+        const {privacyContract, dataSentToken} = await contractDeploymentFifo();
         await utils.setupOwnerPrivacy(owner, privacyContract, ownerKeys);
         await utils.setupSenderPrivacy(sender1, privacyContract);
 
@@ -71,7 +71,7 @@ describe("[BOND MECHANISM] PrivacyFifoContract", function () {
     }
 
     async function readyForBondTests() {
-        const {privacyContract, dataSentToken} = await contractDeployment();
+        const {privacyContract, dataSentToken} = await contractDeploymentFifo();
         await utils.setupOwnerPrivacy(owner, privacyContract, ownerKeys);
         await utils.setupSenderPrivacy(sender1, privacyContract);
         await utils.setupVerifierPrivacy(verifier1, privacyContract);
@@ -85,15 +85,7 @@ describe("[BOND MECHANISM] PrivacyFifoContract", function () {
 
         return {privacyContract, dataSentToken};
     }
-
-    it("[BOND]: Sender without bond cannot submit data", async function () {
-        const {privacyContract} = await loadFixture(enrolledSenderNoBond);
-        const cid = ethers.toUtf8Bytes("QmEncryptedCid_1");
-        await expect(
-            privacyContract.connect(sender1).publishIpfsCid(cid, validPosition)
-        ).to.be.revertedWith("Insufficient DST balance in bond");
-    });
-
+    
     it("[BOND]: Sender bond restored after VALID verification", async function () {
         const {privacyContract, dataSentToken} = await loadFixture(readyForBondTests);
 

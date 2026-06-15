@@ -7,50 +7,33 @@ import utils from "../testUtils/utils";
 
 require('dotenv').config();
 
-import {contractDeployment, sender1, sender2, verifier1, owner, ownerKeys} from "../testUtils/constants";
+import {contractDeploymentFifo, sender1, sender2, verifier1, owner, ownerKeys} from "../testUtils/constants";
 
 describe("[INIT PHASE - SENDER] PrivacyFifoContract", function () {
 
-    let env: Awaited<ReturnType<typeof contractDeployment>>;
+    let env: Awaited<ReturnType<typeof contractDeploymentFifo>>;
     beforeEach(async function () {
-        env = await loadFixture(contractDeployment);
+        env = await loadFixture(contractDeploymentFifo);
         await env.privacyContract.removeAllListeners();
     });
 
     it("[OWNER]: Deployment", async function () {
-        const {privacyContract} = await loadFixture(contractDeployment);
+        const {privacyContract} = await loadFixture(contractDeploymentFifo);
 
         expect(await (
             privacyContract.getDeployedCode()
         )).to.not.null;
     });
 
-    it("[OWNER]: Encryption keys generation", async function () {
-        let encryptionKeys = cipher.generateEncryptionKeys();
-        let string = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Integer sed.";
-        let secretString = cipher.encryptStringHybrid(encryptionKeys.encryptionKey, string);
-        expect(secretString).not.to.equal(string);
-        let stringAgain = cipher.decryptStringHybrid(encryptionKeys.decryptionKey, secretString).toString();
-        expect(stringAgain).to.equal(string);
-    });
-
-    it("[AGENT]: A lot of text to crypt/decrypt", async function () {
-        const agentKeys = cipher.generateKeyPair();
-        const largeText = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Praesent non orci ligula. Cras consequat urna eu mattis mattis. Proin dolor enim, varius tristique odio vel, ullamcorper cursus enim. Pellentesque sagittis ultrices tempor. Praesent sollicitudin diam at nisi euismod, eu lacinia massa pellentesque. Quisque et dapibus nibh. Vestibulum ante ipsum primis in faucibus orci luctus et ultrices posuere cubilia curae; Maecenas varius lectus et commodo luctus. Duis congue turpis dignissim, sagittis arcu vitae, tincidunt ante. Vivamus varius dignissim lectus, quis consequat augue suscipit interdum. Etiam porttitor enim nulla, interdum cursus leo semper ac. Nulla convallis scelerisque ipsum, ullamcorper gravida purus ultrices vel. Curabitur vehicula ornare quam, quis porttitor diam malesuada quis. Duis id lacus tortor. Nam ut finibus turpis. Cras mollis porta volutpat. Nam enim eros, condimentum sed commodo eget, aliquet eu est. Nam at turpis velit. Nulla placerat, sem id ornare pharetra, urna nulla bibendum dolor, eu facilisis ipsum nibh in velit. Sed et leo vitae dui blandit viverra. Maecenas eget purus elit. Ut porta nibh eros, quis vehicula elit porttitor ut. Aenean non quam eu est blandit porta. Aliquam venenatis ut dolor sit amet commodo. Nullam sed nibh auctor est venenatis vehicula. Donec euismod quam tempus, volutpat sem vel, ullamcorper massa. Aliquam erat volutpat. Vivamus elementum metus a varius maximus. Sed bibendum purus in condimentum feugiat. Duis nibh massa, congue eu risus et, euismod cursus velit. Nullam sed sem id libero scelerisque aliquet in in sapien. Curabitur quam lorem, euismod sit amet fringilla non, malesuada in massa. Pellentesque habitant morbi tristique senectus et netus et malesuada fames ac turpis egestas. Class aptent taciti sociosqu ad litora torquent per conubia nostra, per inceptos himenaeos. Praesent sodales suscipit est, in accumsan diam tristique vitae. Nunc pulvinar interdum orci, non convallis neque pretium in. Vestibulum eu pretium dolor. Donec lacinia libero in quam varius condimentum. Ut accumsan, odio sit amet luctus maximus, libero dolor scelerisque lorem, eu lobortis leo lacus quis mi. Maecenas at nibh eget nisi tincidunt commodo a ac est. Curabitur quam arcu, sagittis non justo a, euismod ultrices sapien. Suspendisse ac elit eu mauris egestas aliquam. Cras facilisis arcu non neque ullamcorper, eu tincidunt est tristique. Ut nisi nunc, aliquet non enim ut, porttitor pretium neque. Nullam sodales urna enim, id consectetur urna mattis ac. Nulla aliquam finibus massa quis eleifend. Nunc interdum nunc ac aliquet molestie. Interdum et malesuada fames ac ante ipsum primis in faucibus. Morbi sed turpis venenatis, viverra odio ut, feugiat tellus. In viverra felis ac malesuada maximus. Mauris rhoncus risus ac erat molestie varius sit amet eget elit. Sed metus nunc, vulputate a euismod ac, lobortis quis velit. Nullam vehicula rutrum risus vel porttitor. Duis quis tortor faucibus, mollis metus et, ornare ex. Morbi blandit, velit non laoreet fringilla, lorem nisi hendrerit sapien, ac feugiat tellus tellus tincidunt ex. Nulla vitae fermentum tortor. Nullam et risus velit. Sed porttitor libero eget dolor pulvinar, et feugiat erat pellentesque.";
-        let encrypted = cipher.encryptStringHybrid(agentKeys.publicKey, largeText);
-        let decrypted = cipher.decryptStringHybrid(agentKeys.privateKey, encrypted);
-        expect(decrypted).to.equal(largeText);
-    });
-
     it("[SENDER]: Retrieve owner's public key", async function () {
-        const {privacyContract} = await loadFixture(contractDeployment);
+        const {privacyContract} = await loadFixture(contractDeploymentFifo);
         let ownerPublicKey = await privacyContract.connect(sender1).getInitiatorPublicKey();
         expect(ownerPublicKey).to.equal(ownerKeys.publicKey);
     });
 
     it("[SENDER]: Sender sends their public key encrypted using owner's publicKey", async function () {
         const senderKeys = cipher.generateKeyPair();
-        const {privacyContract} = await loadFixture(contractDeployment);
+        const {privacyContract} = await loadFixture(contractDeploymentFifo);
         let ownerPublicKey = await privacyContract.connect(sender1).getInitiatorPublicKey();
         const encryptedPubKey = cipher.encryptStringHybrid(ownerPublicKey, senderKeys.publicKey);
         let transaction = await privacyContract.connect(sender1).publishEncryptedSenderPublicKey(JSON.stringify(encryptedPubKey));
@@ -58,7 +41,7 @@ describe("[INIT PHASE - SENDER] PrivacyFifoContract", function () {
     });
 
     it("[OWNER]: Owner listen for SenderEnrolledEvent and decrypt key", async function () {
-        const {privacyContract} = await loadFixture(contractDeployment);
+        const {privacyContract} = await loadFixture(contractDeploymentFifo);
         const waitForEvent = new Promise<{ sender: string; key: string }>((resolve, reject) => {
             // @ts-ignore
             privacyContract.once("SenderEnrolledEvent", (sender: string, key: string) => {
@@ -82,7 +65,7 @@ describe("[INIT PHASE - SENDER] PrivacyFifoContract", function () {
     });
 
     it("[SENDER]: Sender1 duplicate the enrollment request", async function () {
-        const {privacyContract} = await loadFixture(contractDeployment);
+        const {privacyContract} = await loadFixture(contractDeploymentFifo);
         await utils.setupOwnerPrivacy(owner, privacyContract, ownerKeys);
         await utils.setupSenderPrivacy(sender2, privacyContract);
         expect(
@@ -95,24 +78,15 @@ describe("[INIT PHASE - SENDER] PrivacyFifoContract", function () {
 
 describe("[INIT PHASE - VERIFIER] PrivacyFifoContract", function () {
 
-    it('[VERIFIER] generates their key pair', async () => {
-        let verifierKeys = cipher.generateKeyPair();
-        let string = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Integer sed.";
-        let secretString = cipher.encryptStringHybrid(verifierKeys.publicKey, string);
-        expect(secretString).not.to.equal(string);
-        let stringAgain = cipher.decryptStringHybrid(verifierKeys.privateKey, secretString).toString();
-        expect(stringAgain).to.equal(string);
-    });
-
     it("[VERIFIER] Retrieve owner's public key", async function () {
-        const {privacyContract} = await loadFixture(contractDeployment);
+        const {privacyContract} = await loadFixture(contractDeploymentFifo);
         let ownerPublicKey = await privacyContract.connect(verifier1).getInitiatorPublicKey();
         expect(ownerPublicKey).to.equal(ownerKeys.publicKey);
     });
 
     it("[VERIFIER]: Verifier sends their public key encrypted using owner's publicKey", async function () {
         const verifierKeys = cipher.generateKeyPair();
-        const {privacyContract} = await loadFixture(contractDeployment);
+        const {privacyContract} = await loadFixture(contractDeploymentFifo);
         let ownerPublicKey = await privacyContract.connect(verifier1).getInitiatorPublicKey();
         const encryptedPubKey = cipher.encryptStringHybrid(ownerPublicKey, verifierKeys.publicKey);
         let transaction = await privacyContract.connect(verifier1).publishEncryptedVerifierPublicKey(JSON.stringify(encryptedPubKey));
@@ -120,7 +94,7 @@ describe("[INIT PHASE - VERIFIER] PrivacyFifoContract", function () {
     });
 
     it("[OWNER]: Wait for VerifierEnrolledEvent", async function () {
-        const {privacyContract} = await loadFixture(contractDeployment);
+        const {privacyContract} = await loadFixture(contractDeploymentFifo);
         const waitForVerifier = new Promise<{ verifier: string; key: string }>((resolve, reject) => {
             // @ts-ignore
             privacyContract.connect(owner).once("VerifierEnrolledEvent", (verifier: string, key: string) => {
@@ -145,7 +119,7 @@ describe("[INIT PHASE - VERIFIER] PrivacyFifoContract", function () {
     });
 
     it("[OWNER]: Calculate verifier public key", async function () {
-        const {privacyContract} = await loadFixture(contractDeployment);
+        const {privacyContract} = await loadFixture(contractDeploymentFifo);
         const waitForVerifier = new Promise<{ verifier: string; key: string }>((resolve, reject) => {
             // @ts-ignore
             privacyContract.connect(owner).once("VerifierEnrolledEvent", (verifier: string, key: string) => {

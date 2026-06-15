@@ -96,6 +96,31 @@ export async function lifecycleDeployment() {
     return {privacyContract, dataSentToken};
 }
 
+export async function contractDeploymentFifo() {
+    [owner, sender1, sender2, sender3, verifier1, verifier2, verifier3, verifier4, interestedUser] = await ethers.getSigners();
+    const DST_OWNERS = [sender1, sender2, sender3, verifier1, verifier2, verifier3, verifier4, interestedUser];
+    const DST_FOR_OWNERS = 100;
+
+    const PrivacyFirstContract = await ethers.getContractFactory("PrivacyFirstContractFifo");
+    const DataSentTokenContract = await ethers.getContractFactory("DataSentTokenContract");
+    const dataSentToken = await DataSentTokenContract.deploy(999999999);
+    const privacyContract = await PrivacyFirstContract.deploy(
+        ownerKeys.publicKey,
+        contractConfiguration,
+        await dataSentToken.getAddress()
+    );
+    await dataSentToken.connect(owner).approve(
+        await privacyContract.getAddress(),
+        contractConfiguration.rewardConfig.totalDst
+    );
+    for (const dstOwner of DST_OWNERS) {
+        await dataSentToken.transfer(await dstOwner.getAddress(), DST_FOR_OWNERS);
+    }
+
+    await privacyContract.connect(owner).payInitialSupply();
+    return {privacyContract, dataSentToken}
+}
+
 export async function oneDataRequiredDeployment() {
     [owner, sender1, sender2, sender3, verifier1, verifier2, verifier3, verifier4, interestedUser] = await ethers.getSigners();
     const PrivacyFirstContract = await ethers.getContractFactory("PrivacyFirstContract");

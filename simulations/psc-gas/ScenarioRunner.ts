@@ -311,7 +311,6 @@ export class ScenarioRunner {
         for (let i = 0; i < submitTxs.length; i++) {
             const r = await submitTxs[i].wait();
             this.tracker.record("data_submission", r!.gasUsed, "sender", senderIndices[i]);
-            this.tracker.recordDataSent(senderIndices[i]);
         }
 
         // Phase 2: owner notifies key-ready for each dataId in order. Each call
@@ -375,10 +374,11 @@ export class ScenarioRunner {
 
                     totalChecks++;
                     pendingExists = true;
-                } catch {
-                    // No data available, cooldown blocks, bond depleted, etc.
-                    // Skip and let the outer while-loop retry until no verifier
-                    // can make progress.
+                } catch (e: any) {
+                    if (!e.message?.includes("No data available") &&
+                        !e.message?.includes("Already verifying")) {
+                        this.log(`  Unexpected error V${vi}: ${e.message}`);
+                    }
                 }
             }
 

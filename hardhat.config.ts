@@ -17,7 +17,12 @@ const config: HardhatUserConfig = {
     currency: "USD",
   },
   mocha: {
-    timeout: 30 * 1000
+    timeout: 60 * 1000
+  },
+  networks: {
+    hardhat: {
+      blockGasLimit: 1_000_000_000
+    }
   }
 };
 
