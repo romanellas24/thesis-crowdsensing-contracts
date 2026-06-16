@@ -22,7 +22,7 @@ const config: HardhatUserConfig = {
   networks: {
     hardhat: {
       blockGasLimit: 1_000_000_000,
-      gas: 1_000_000_000,
+      hardfork: "cancun",
     }
   }
 };
