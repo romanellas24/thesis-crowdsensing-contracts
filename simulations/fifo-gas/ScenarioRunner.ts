@@ -254,7 +254,7 @@ export class ScenarioRunner {
             const cid = ethers.toUtf8Bytes(`QmSimCid_${i}`);
             const position = positionForChunk(chunkForCid(i));
 
-            const tx = await this.contract.connect(wallet).publishIpfsCid(cid, position);
+            const tx = await this.contract.connect(wallet).publishIpfsCid(cid, position, {gasLimit: 5_000_000});
             txs.push(tx);
             senderIndices.push(senderIdx);
 
@@ -282,12 +282,12 @@ export class ScenarioRunner {
 
                 try {
                     // Request verification slot
-                    const txReq = await this.contract.connect(wallet).requestAuthToVerify();
+                    const txReq = await this.contract.connect(wallet).requestAuthToVerify({gasLimit: 200_000_000});
                     const rReq = await txReq.wait();
                     this.tracker.record("verification_request", rReq!.gasUsed, "verifier", vi);
 
                     // Submit SUCCESS (enum value 0)
-                    const txSub = await this.contract.connect(wallet).submitVerifyResult(0);
+                    const txSub = await this.contract.connect(wallet).submitVerifyResult(0, {gasLimit: 200_000_000});
                     const rSub = await txSub.wait();
                     this.tracker.record("verification_submit", rSub!.gasUsed, "verifier", vi);
 
