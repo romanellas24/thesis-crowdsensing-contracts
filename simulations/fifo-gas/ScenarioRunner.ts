@@ -295,7 +295,7 @@ export class ScenarioRunner {
                     pendingExists = true;
                 } catch (e: any) {
                     if (!e.message?.includes("No data available") &&
-                        !e.message?.includes("Already verifying")) {
+                        !e.message?.includes("Insufficient DST balance in bond")) {
                         this.log(`  Unexpected error V${vi}: ${e.message}`);
                     }
                 }
