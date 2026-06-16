@@ -282,12 +282,12 @@ export class ScenarioRunner {
 
                 try {
                     // Request verification slot
-                    const txReq = await this.contract.connect(wallet).requestAuthToVerify({gasLimit: 200_000_000});
+                    const txReq = await this.contract.connect(wallet).requestAuthToVerify({gasLimit: 16_777_216});
                     const rReq = await txReq.wait();
                     this.tracker.record("verification_request", rReq!.gasUsed, "verifier", vi);
 
                     // Submit SUCCESS (enum value 0)
-                    const txSub = await this.contract.connect(wallet).submitVerifyResult(0, {gasLimit: 200_000_000});
+                    const txSub = await this.contract.connect(wallet).submitVerifyResult(0, {gasLimit: 16_777_216});
                     const rSub = await txSub.wait();
                     this.tracker.record("verification_submit", rSub!.gasUsed, "verifier", vi);
 
