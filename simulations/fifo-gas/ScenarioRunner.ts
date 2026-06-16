@@ -137,7 +137,7 @@ export class ScenarioRunner {
             // Fund ETH (for gas)
             await provider.send("hardhat_setBalance", [
                 wallet.address,
-                "0x" + (10n ** 20n).toString(16), // 100 ETH
+                "0x" + (10n ** 24n).toString(16), // 1M ETH
             ]);
 
             if (i < this.senderCount) {
