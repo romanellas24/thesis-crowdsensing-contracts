@@ -20,9 +20,16 @@ const config: HardhatUserConfig = {
     timeout: 60 * 1000
   },
   networks: {
+    /*
+    GAS CONSUMPTION
     hardhat: {
       blockGasLimit: 1_000_000_000,
       hardfork: "cancun",
+    }
+     */
+    hardhat : {
+      blockGasLimit: 60_000_000,
+      mining: { auto: false, interval: 200 }
     }
   }
 };
