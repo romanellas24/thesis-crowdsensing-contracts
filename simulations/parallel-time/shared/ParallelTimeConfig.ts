@@ -38,7 +38,7 @@ export const TOTAL_CHUNKS           = 100;   // 10 × 10 grid
 // Indices 0–19 are reserved for Hardhat's default signers (used as owners).
 // Sender/verifier wallets start at WALLET_BASE_INDEX.
 // Per-campaign stride: SENDERS_PER_CAMPAIGN + VERIFIERS_PER_CAMPAIGN = 1 100.
-//   campaign i => indices [WALLET_BASE_INDEX + i*1100, …, +1099]
+//   campaign i → indices [WALLET_BASE_INDEX + i*1100, …, +1099]
 //   max index with 16 campaigns: WALLET_BASE_INDEX + 15*1100 + 1099 = 18 099
 export const WALLET_BASE_INDEX     = 500;   // safe margin above signer range
 export const WALLETS_PER_CAMPAIGN  = SENDERS_PER_CAMPAIGN + VERIFIERS_PER_CAMPAIGN;

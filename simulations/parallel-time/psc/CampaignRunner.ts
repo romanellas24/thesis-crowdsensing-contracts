@@ -55,7 +55,7 @@ export class PscCampaignRunner {
         this.ownerSigner   = ownerSigner;
     }
 
-    //  Public entry point 
+    // ── Public entry point ────────────────────────────────────────────────────
 
     async run(startBlock: number): Promise<CampaignBlockResult> {
         this.endBlock = startBlock;
@@ -76,7 +76,7 @@ export class PscCampaignRunner {
         };
     }
 
-    //  Helpers 
+    // ── Helpers ───────────────────────────────────────────────────────────────
 
     private updateEnd(blockNumber: number): void {
         if (blockNumber > this.endBlock) this.endBlock = blockNumber;
@@ -91,7 +91,7 @@ export class PscCampaignRunner {
         const maxDataPerSender           = Math.ceil(TOTAL_CIDS / SENDERS_PER_CAMPAIGN);
         // Use CHECKS_REQUIRED (not MAJORITY) so the bond covers the worst-case
         // where a single verifier is assigned all slots of a CID.
-        const maxDataPerVerifierPerBond  = Math.ceil((TOTAL_CIDS * CHECKS_REQUIRED) / VERIFIERS_PER_CAMPAIGN) * 2;
+        const maxDataPerVerifierPerBond  = Math.ceil((TOTAL_CIDS * CHECKS_REQUIRED) / VERIFIERS_PER_CAMPAIGN) * 2; // 2× margin: non-uniform distribution
         return {
             needs: {
                 dataNeeded:            0,
@@ -123,7 +123,7 @@ export class PscCampaignRunner {
         };
     }
 
-    //  Deploy 
+    // ── Deploy ────────────────────────────────────────────────────────────────
 
     private async deploy(): Promise<void> {
         const config = this.buildConfig();
@@ -151,7 +151,7 @@ export class PscCampaignRunner {
         this.updateEnd((await supplyTx.wait())!.blockNumber);
     }
 
-    //  Wallet creation & DST funding 
+    // ── Wallet creation & DST funding ────────────────────────────────────────
 
     private async createAndFundWallets(): Promise<void> {
         const provider = ethers.provider;
@@ -191,7 +191,7 @@ export class PscCampaignRunner {
         this.log(`Wallets funded`);
     }
 
-    //  Enrollment 
+    // ── Enrollment ────────────────────────────────────────────────────────────
 
     private async enrollSenders(): Promise<void> {
         const ownerPubKey = await this.contract.connect(this.ownerSigner).getInitiatorPublicKey();
@@ -265,7 +265,7 @@ export class PscCampaignRunner {
         this.log(`${VERIFIERS_PER_CAMPAIGN} verifiers enrolled`);
     }
 
-    //  Bond payments 
+    // ── Bond payments ─────────────────────────────────────────────────────────
 
     private async payBonds(): Promise<void> {
         const contractAddr     = await this.contract.getAddress();
@@ -290,7 +290,7 @@ export class PscCampaignRunner {
         this.log("Bonds paid");
     }
 
-    //  CID submission + owner notifyKeyReady 
+    // ── CID submission + owner notifyKeyReady ─────────────────────────────────
 
     /**
      * PSC submission is a two-phase operation:
@@ -363,7 +363,7 @@ export class PscCampaignRunner {
         this.log(`${TOTAL_CIDS} key-ready notifications sent`);
     }
 
-    //  Verification 
+    // ── Verification ──────────────────────────────────────────────────────────
 
     /**
      * PSC verification loop per slot:
@@ -377,11 +377,16 @@ export class PscCampaignRunner {
     private async verifyAll(): Promise<void> {
         let totalChecks  = 0;
         let pendingExist = true;
+        const bondExhausted = new Set<number>();
 
         while (pendingExist) {
             pendingExist = false;
 
-            const roundPromises = this.verifierWallets.map(async (wallet, vi) => {
+            const activeVerifiers = this.verifierWallets
+                .map((wallet, vi) => ({ wallet, vi }))
+                .filter(({ vi }) => !bondExhausted.has(vi));
+
+            const roundPromises = activeVerifiers.map(async ({ wallet, vi }) => {
                 try {
                     // 1. Request slot
                     const txReq = await this.contract.connect(wallet).requestAuthToVerify();
@@ -403,6 +408,12 @@ export class PscCampaignRunner {
                     return true;
                 } catch (e: any) {
                     const msg = e.message ?? "";
+
+                    if (msg.includes("Insufficient DST balance in bond")) {
+                        bondExhausted.add(vi);
+                        return false;
+                    }
+
                     const isKnown =
                         msg.includes("No data available") ||
                         msg.includes("Already verifying") ||

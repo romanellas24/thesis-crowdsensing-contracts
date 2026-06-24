@@ -34,7 +34,7 @@ import { PfcCampaignRunner } from "./CampaignRunner";
 const OUTPUT_FILE = "results/pfc_parallel_time.csv";
 const CONTRACT    = "PFC" as const;
 
-//  Hardhat network sanity-check 
+// ── Hardhat network sanity-check ──────────────────────────────────────────────
 
 async function assertNetworkConfig(): Promise<void> {
     const block = await ethers.provider.getBlock("latest");
@@ -54,7 +54,7 @@ async function assertNetworkConfig(): Promise<void> {
     console.log(`✔  Block gas limit: ${limit.toLocaleString()} gas`);
 }
 
-//  Main 
+// ── Main ─────────────────────────────────────────────────────────────────────
 
 async function main(): Promise<void> {
     await assertNetworkConfig();
