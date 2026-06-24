@@ -89,7 +89,9 @@ export class PscCampaignRunner {
 
     private buildConfig() {
         const maxDataPerSender           = Math.ceil(TOTAL_CIDS / SENDERS_PER_CAMPAIGN);
-        const maxDataPerVerifierPerBond  = Math.ceil((TOTAL_CIDS * MAJORITY) / VERIFIERS_PER_CAMPAIGN);
+        // Use CHECKS_REQUIRED (not MAJORITY) so the bond covers the worst-case
+        // where a single verifier is assigned all slots of a CID.
+        const maxDataPerVerifierPerBond  = Math.ceil((TOTAL_CIDS * CHECKS_REQUIRED) / VERIFIERS_PER_CAMPAIGN);
         return {
             needs: {
                 dataNeeded:            0,
@@ -170,7 +172,7 @@ export class PscCampaignRunner {
         const senderBond   = BigInt(config.needs.maxDataPerSender)         * BigInt(config.rewardConfig.dataSenderBondPerData);
         const verifierBond = BigInt(config.needs.maxDataPerVerifierPerBond) * BigInt(config.rewardConfig.dataVerifierBondPerData);
 
-        let nonce = await this.ownerSigner.getNonce();
+        let nonce = await this.ownerSigner.getNonce("pending");
         const transferPromises: Promise<any>[] = [];
 
         for (const w of this.senderWallets) {
@@ -205,7 +207,7 @@ export class PscCampaignRunner {
         });
         await Promise.all(phase1);
 
-        let nonce = await this.ownerSigner.getNonce();
+        let nonce = await this.ownerSigner.getNonce("pending");
         const phase2Promises: Promise<any>[] = [];
 
         for (let i = 0; i < SENDERS_PER_CAMPAIGN; i++) {
@@ -245,11 +247,11 @@ export class PscCampaignRunner {
         });
         await Promise.all(phase1);
 
-        let nonce = await this.ownerSigner.getNonce();
+        let nonce = await this.ownerSigner.getNonce("pending");
         const phase2Promises: Promise<any>[] = [];
 
         for (let i = 0; i < VERIFIERS_PER_CAMPAIGN; i++) {
-            // PSC: key arg is ignored on-chain => pass empty string
+            // PSC: key arg is ignored on-chain → pass empty string
             const tx = await this.contract.connect(this.ownerSigner)
                 .publishVerifierDecryptionKey(
                     this.verifierWallets[i].address,
@@ -271,13 +273,15 @@ export class PscCampaignRunner {
         const verifierRequired = await this.contract.getRequiredVerifierBond();
 
         const senderPromises = this.senderWallets.map(async (wallet) => {
-            await this.dstToken.connect(wallet).approve(contractAddr, senderRequired);
+            const approveTx = await this.dstToken.connect(wallet).approve(contractAddr, senderRequired);
+            await approveTx.wait();
             const tx = await this.contract.connect(wallet).senderPayBond();
             this.updateEnd((await tx.wait())!.blockNumber);
         });
 
         const verifierPromises = this.verifierWallets.map(async (wallet) => {
-            await this.dstToken.connect(wallet).approve(contractAddr, verifierRequired);
+            const approveTx = await this.dstToken.connect(wallet).approve(contractAddr, verifierRequired);
+            await approveTx.wait();
             const tx = await this.contract.connect(wallet).verifierPayBond();
             this.updateEnd((await tx.wait())!.blockNumber);
         });
@@ -302,19 +306,51 @@ export class PscCampaignRunner {
             senderCids[i % SENDERS_PER_CAMPAIGN].push(i);
         }
 
+        // Same retry logic as PFC: Hardhat interval-mining drops sub-call revert data
+        // → data=null. Retry auto-increments nonce; succeeds in isolation next block.
+        const CID_SUBMIT_MAX_RETRIES = 5;
+
         const senderPromises = this.senderWallets.map(async (wallet, senderIdx) => {
             for (const cidIdx of senderCids[senderIdx]) {
                 const cid      = ethers.toUtf8Bytes(`QmSimCid_${this.campaignIndex}_${cidIdx}`);
                 const position = positionForChunk(chunkForCid(cidIdx));
-                const tx       = await this.contract.connect(wallet).publishIpfsCid(cid, position);
-                this.updateEnd((await tx.wait())!.blockNumber);
+
+                let mined = false;
+                let attempt = 0;
+                while (!mined) {
+                    attempt++;
+                    const tx = await this.contract.connect(wallet).publishIpfsCid(cid, position);
+                    try {
+                        this.updateEnd((await tx.wait())!.blockNumber);
+                        mined = true;
+                    } catch (e: any) {
+                        const isHardhatRace = e.code === "CALL_EXCEPTION" && e.data == null;
+                        if (!isHardhatRace || attempt >= CID_SUBMIT_MAX_RETRIES) {
+                            try {
+                                await this.contract.connect(wallet).publishIpfsCid
+                                    .staticCall(cid, position);
+                                throw new Error(
+                                    `[C${this.campaignIndex} S${senderIdx} CID${cidIdx}] ` +
+                                    `${attempt} retries exhausted (data=null) — staticCall passes → Hardhat race.`,
+                                );
+                            } catch (staticErr: any) {
+                                if (staticErr.message?.includes("retries exhausted")) throw staticErr;
+                                throw new Error(
+                                    `[C${this.campaignIndex} S${senderIdx} CID${cidIdx}] ` +
+                                    `revert reason: ${staticErr.reason ?? staticErr.shortMessage ?? staticErr.message}`,
+                                );
+                            }
+                        }
+                        // data=null within retry budget — nonce auto-incremented, retry next block
+                    }
+                }
             }
         });
         await Promise.all(senderPromises);
         this.log(`${TOTAL_CIDS} CIDs submitted`);
 
         // Phase 2 — owner notifyVerificationKeyReady (nonce-managed batch)
-        let nonce = await this.ownerSigner.getNonce();
+        let nonce = await this.ownerSigner.getNonce("pending");
         const notifyPromises: Promise<any>[] = [];
 
         for (let dataId = 0; dataId < TOTAL_CIDS; dataId++) {
@@ -366,8 +402,13 @@ export class PscCampaignRunner {
 
                     return true;
                 } catch (e: any) {
-                    if (!e.message?.includes("No data available") &&
-                        !e.message?.includes("Already verifying")) {
+                    const msg = e.message ?? "";
+                    const isKnown =
+                        msg.includes("No data available") ||
+                        msg.includes("Already verifying") ||
+                        msg.includes("Campaign is closed") ||
+                        (e.code === "CALL_EXCEPTION" && e.data == null);
+                    if (!isKnown) {
                         this.log(`  Unexpected V${vi}: ${e.message}`);
                     }
                     return false;

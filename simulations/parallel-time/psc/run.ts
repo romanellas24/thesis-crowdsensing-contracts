@@ -42,7 +42,7 @@ async function assertNetworkConfig(): Promise<void> {
         console.error(
             `\n❌  Block gas limit is ${limit.toLocaleString()} gas.\n` +
             `   This simulation requires blockGasLimit: ${BLOCK_GAS_LIMIT.toLocaleString()}.\n` +
-            `   Add to hardhat.config.ts => networks.hardhat:\n` +
+            `   Add to hardhat.config.ts → networks.hardhat:\n` +
             `     blockGasLimit: ${BLOCK_GAS_LIMIT},\n` +
             `     mining: { auto: false, interval: ${MINING_INTERVAL_MS} }\n`,
         );

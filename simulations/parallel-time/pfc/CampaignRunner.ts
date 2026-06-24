@@ -93,7 +93,9 @@ export class PfcCampaignRunner {
 
     private buildConfig() {
         const maxDataPerSender           = Math.ceil(TOTAL_CIDS / SENDERS_PER_CAMPAIGN);
-        const maxDataPerVerifierPerBond  = Math.ceil((TOTAL_CIDS * MAJORITY) / VERIFIERS_PER_CAMPAIGN);
+        // Use CHECKS_REQUIRED (not MAJORITY) so the bond covers the worst-case
+        // where a single verifier is assigned all slots of a CID.
+        const maxDataPerVerifierPerBond  = Math.ceil((TOTAL_CIDS * CHECKS_REQUIRED) / VERIFIERS_PER_CAMPAIGN);
         return {
             needs: {
                 dataNeeded:            0,
@@ -177,7 +179,7 @@ export class PfcCampaignRunner {
         const senderBond   = BigInt(config.needs.maxDataPerSender)          * BigInt(config.rewardConfig.dataSenderBondPerData);
         const verifierBond = BigInt(config.needs.maxDataPerVerifierPerBond)  * BigInt(config.rewardConfig.dataVerifierBondPerData);
 
-        let nonce = await this.ownerSigner.getNonce();
+        let nonce = await this.ownerSigner.getNonce("pending");
         const transferPromises: Promise<any>[] = [];
 
         for (const w of this.senderWallets) {
@@ -221,7 +223,7 @@ export class PfcCampaignRunner {
         await Promise.all(phase1Promises);
 
         // Phase 2 — owner batch (nonce-managed)
-        let nonce = await this.ownerSigner.getNonce();
+        let nonce = await this.ownerSigner.getNonce("pending");
         const phase2Promises: Promise<any>[] = [];
 
         for (let i = 0; i < SENDERS_PER_CAMPAIGN; i++) {
@@ -263,7 +265,7 @@ export class PfcCampaignRunner {
         await Promise.all(phase1Promises);
 
         // Phase 2 — owner batch (nonce-managed)
-        let nonce = await this.ownerSigner.getNonce();
+        let nonce = await this.ownerSigner.getNonce("pending");
         const phase2Promises: Promise<any>[] = [];
 
         for (let i = 0; i < VERIFIERS_PER_CAMPAIGN; i++) {
@@ -290,7 +292,7 @@ export class PfcCampaignRunner {
     /**
      * Bonds: each actor does approve + payBond independently.
      * All actors (senders + verifiers) run in parallel.
-     * approve must complete before payBond for the same wallet => sequential
+     * approve must complete before payBond for the same wallet → sequential
      * within each actor, parallel across actors.
      */
     private async payBonds(): Promise<void> {
@@ -299,13 +301,15 @@ export class PfcCampaignRunner {
         const verifierRequired = await this.contract.getRequiredVerifierBond();
 
         const senderPromises = this.senderWallets.map(async (wallet) => {
-            await this.dstToken.connect(wallet).approve(contractAddr, senderRequired);
+            const approveTx = await this.dstToken.connect(wallet).approve(contractAddr, senderRequired);
+            await approveTx.wait();
             const tx = await this.contract.connect(wallet).senderPayBond();
             this.updateEnd((await tx.wait())!.blockNumber);
         });
 
         const verifierPromises = this.verifierWallets.map(async (wallet) => {
-            await this.dstToken.connect(wallet).approve(contractAddr, verifierRequired);
+            const approveTx = await this.dstToken.connect(wallet).approve(contractAddr, verifierRequired);
+            await approveTx.wait();
             const tx = await this.contract.connect(wallet).verifierPayBond();
             this.updateEnd((await tx.wait())!.blockNumber);
         });
@@ -321,6 +325,18 @@ export class PfcCampaignRunner {
      * Each sender sends its own subset sequentially (no nonce conflicts),
      * all senders run in parallel.
      */
+    // Retry budget for submitCids (see comment below)
+    private readonly CID_SUBMIT_MAX_RETRIES = 5;
+
+    /**
+     * CID submission with retry logic for Hardhat interval-mining race conditions.
+     *
+     * Root cause: when multiple wallets land in the same block with interval mining,
+     * Hardhat sometimes fails to propagate sub-call revert data in receipts → data=null.
+     * The reverted tx consumed a nonce; ethers.js auto-increments on the next call.
+     * The retry executes in isolation (next block) and succeeds if the sender is
+     * properly registered. If all retries fail, a staticCall reveals the real reason.
+     */
     private async submitCids(): Promise<void> {
         // Pre-compute each sender's CID list
         const senderCids: number[][] = Array.from({ length: SENDERS_PER_CAMPAIGN }, () => []);
@@ -332,8 +348,37 @@ export class PfcCampaignRunner {
             for (const cidIdx of senderCids[senderIdx]) {
                 const cid      = ethers.toUtf8Bytes(`QmSimCid_${this.campaignIndex}_${cidIdx}`);
                 const position = positionForChunk(chunkForCid(cidIdx));
-                const tx       = await this.contract.connect(wallet).publishIpfsCid(cid, position);
-                this.updateEnd((await tx.wait())!.blockNumber);
+
+                let mined = false;
+                let attempt = 0;
+                while (!mined) {
+                    attempt++;
+                    const tx = await this.contract.connect(wallet).publishIpfsCid(cid, position);
+                    try {
+                        this.updateEnd((await tx.wait())!.blockNumber);
+                        mined = true;
+                    } catch (e: any) {
+                        const isHardhatRace = e.code === "CALL_EXCEPTION" && e.data == null;
+                        if (!isHardhatRace || attempt >= this.CID_SUBMIT_MAX_RETRIES) {
+                            // All retries exhausted or a real error: diagnose via staticCall
+                            try {
+                                await this.contract.connect(wallet).publishIpfsCid
+                                    .staticCall(cid, position);
+                                throw new Error(
+                                    `[C${this.campaignIndex} S${senderIdx} CID${cidIdx}] ` +
+                                    `${attempt} retries exhausted (data=null) — staticCall passes → Hardhat race.`,
+                                );
+                            } catch (staticErr: any) {
+                                if (staticErr.message?.includes("retries exhausted")) throw staticErr;
+                                throw new Error(
+                                    `[C${this.campaignIndex} S${senderIdx} CID${cidIdx}] ` +
+                                    `revert reason: ${staticErr.reason ?? staticErr.shortMessage ?? staticErr.message}`,
+                                );
+                            }
+                        }
+                        // data=null within retry budget — nonce is auto-incremented, retry next block
+                    }
+                }
             }
         });
 
@@ -344,7 +389,7 @@ export class PfcCampaignRunner {
     //  Verification 
 
     /**
-     * Verification (PFC): request slot => submit result.
+     * Verification (PFC): request slot → submit result.
      * All verifiers attempt in parallel per round; rounds repeat until no
      * pending data remains.
      */
@@ -365,8 +410,18 @@ export class PfcCampaignRunner {
 
                     return true;
                 } catch (e: any) {
-                    if (!e.message?.includes("No data available") &&
-                        !e.message?.includes("Already verifying")) {
+                    // "No data available" and "Already verifying" are normal loop
+                    // termination signals. With interval mining, Hardhat sometimes
+                    // fails to encode the revert reason in the receipt (data=null);
+                    // this manifests as CALL_EXCEPTION without a reason string and
+                    // is effectively "No data available" arriving out-of-band.
+                    const msg = e.message ?? "";
+                    const isKnown =
+                        msg.includes("No data available") ||
+                        msg.includes("Already verifying") ||
+                        msg.includes("Campaign is closed") ||
+                        (e.code === "CALL_EXCEPTION" && e.data == null);
+                    if (!isKnown) {
                         this.log(`  Unexpected V${vi}: ${e.message}`);
                     }
                     return false;
