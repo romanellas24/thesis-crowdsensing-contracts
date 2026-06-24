@@ -95,7 +95,7 @@ export class PfcCampaignRunner {
         const maxDataPerSender           = Math.ceil(TOTAL_CIDS / SENDERS_PER_CAMPAIGN);
         // Use CHECKS_REQUIRED (not MAJORITY) so the bond covers the worst-case
         // where a single verifier is assigned all slots of a CID.
-        const maxDataPerVerifierPerBond  = Math.ceil((TOTAL_CIDS * CHECKS_REQUIRED) / VERIFIERS_PER_CAMPAIGN);
+        const maxDataPerVerifierPerBond  = Math.ceil((TOTAL_CIDS * CHECKS_REQUIRED) / VERIFIERS_PER_CAMPAIGN) * 2;
         return {
             needs: {
                 dataNeeded:            0,
