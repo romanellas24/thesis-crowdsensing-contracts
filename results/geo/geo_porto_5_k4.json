@@ -1,0 +1,46 @@
+{
+  "timestamp": "2026-06-27T16:01:58.858Z",
+  "config": {
+    "senders": 5,
+    "verifiers": 10,
+    "faultyVerifiers": 3,
+    "maxPerSender": 100,
+    "checks": 3,
+    "verificationTimeout": 120,
+    "dataSenderPayout": 1000,
+    "dataVerifierPayout": 50,
+    "rewardDecayFactor": 4,
+    "chunk4Side": 10,
+    "chunkSizeE7": 116426,
+    "originLatE7": 411392780,
+    "originLonE7": -86900860,
+    "squareSideE7": 1164260,
+    "maximumDataPerChunk": 5000
+  },
+  "results": {
+    "totalCids": 179,
+    "coveredChunks": 18,
+    "totalChunks": 100,
+    "coveragePercent": 18,
+    "chunkDistribution": {
+      "3": 7,
+      "4": 8,
+      "5": 21,
+      "6": 16,
+      "7": 17,
+      "8": 9,
+      "9": 7,
+      "13": 21,
+      "14": 9,
+      "15": 15,
+      "19": 8,
+      "20": 4,
+      "21": 7,
+      "22": 7,
+      "30": 8,
+      "31": 3,
+      "32": 4,
+      "33": 8
+    }
+  }
+}
