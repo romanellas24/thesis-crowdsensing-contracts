@@ -53,8 +53,8 @@ import {VerificationResult} from '../../src/sdk/utils/CipherProvider';
 
 //  Configuration
 
-const NO_SENDERS = 5;
-const DECAY_FACTOR = 4;
+const NO_SENDERS = 500;
+const DECAY_FACTOR = 1;
 
 const CSV_PATH = `simulations/geo-porto/porto_${NO_SENDERS}.csv`;
 const OUT_MAIN = `results/geo/geo_porto_${NO_SENDERS}_k${DECAY_FACTOR}.json`;
@@ -437,6 +437,13 @@ async function main() {
                 return v.requestAndVerify();
             });
             const results = await Promise.all(map);
+            for (const result of results) {
+                if(result.dataId !== -1){
+                    console.log(`Verified: ${count++}/${totalCids}`);
+                } else {
+                    keepGoing = false;
+                }
+            }
         } catch (e) {
             keepGoing = false;
         }
