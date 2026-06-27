@@ -24,7 +24,7 @@ export const BLOCK_GAS_LIMIT = 60_000_000;
 export const MINING_INTERVAL_MS = 200;
 
 // Number of concurrent campaigns to benchmark.
-export const CAMPAIGN_SIZES = [1, 2, 4, 8, 16];
+export const CAMPAIGN_SIZES = [1, 2, 4];
 
 // Per-campaign actor counts and workload.
 export const SENDERS_PER_CAMPAIGN    = 1_000;
