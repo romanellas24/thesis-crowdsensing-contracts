@@ -1,45 +1,3 @@
-/**
- * Geographic Simulation - Porto Taxi Dataset on PSC (fault-tolerant variant)
- *
- * Evaluates the PSC contract's spatial chunking with real-world GPS traces AND
- * its tolerance to verifier failures. Active novel features:
- *   §2.6.1 trusted verifier  (Kdec delivered per-election inside bundle)
- *   §2.6.2 reward decay      (dataSenderPayout · f(chunkLoad))
- *
- * What changed vs. the previous run:
- *   The old driver relied on VerifierPrivacyFirst.startVerifyLoop(), whose
- *   "no data available" path suspends on an event notifier that only wakes on a
- *   NEW DataVerificationRequestedEvent. A verifier that dies after being elected
- *   leaves a slot that becomes reclaimable purely by deadline expiry - a TEMPORAL
- *   trigger that emits no event. So the surviving verifiers slept forever and the
- *   drain loop never terminated. On a local Hardhat node block.timestamp does not
- *   advance on its own either, so the on-chain timeout never fired.
- *
- *   This run drives the survivors explicitly. When a full round makes no progress
- *   while data is still pending, it advances the EVM clock past verificationTimeout
- *   so the abandoned slots expire on-chain; the survivors then re-request, get
- *   re-elected onto those slots, the Owner re-delivers a fresh bundle (PSC resets
- *   _bundleDelivered on re-election), and the verification completes. No CID is lost.
- *
- *   The on-chain recovery logic (slot reassignment in _findAvailableSlot, bundle
- *   re-delivery on re-election) was already present and is left untouched; only the
- *   off-chain orchestration is reworked.
- *
- *   Failure under test: VERIFIER death. The Owner is assumed live (it is the party
- *   that re-delivers bundles).
- *
- * Input:
- *   500 rows from the Taxi Service Prediction dataset (Porto, Kaggle).
- *   Prepare: head -501 train.csv > simulations/geo-porto/porto_500.csv
- *
- * Outputs:
- *   results/geo/geo_porto_<n>_k<k>.json        - chunk CID distribution + recovery stats.
- *   results/geo/geo_porto_<n>_k<k>_decay.json  - expected sender reward for the NEXT CID.
- *
- * Usage:
- *   npx hardhat run simulations/geo-porto/run.ts
- */
-
 import * as fs from 'fs';
 import * as path from 'path';
 import * as readline from 'readline';
@@ -51,10 +9,15 @@ import {SenderPrivacySecond} from '../../src/sdk/PSC/SenderPrivacySecond';
 import {VerifierPrivacySecond} from '../../src/sdk/PSC/VerifierPrivacySecond';
 import {VerificationResult} from '../../src/sdk/utils/CipherProvider';
 
-//  Configuration
+const envInt = (k: string, def: number) =>
+    process.env[k] !== undefined ? Number(process.env[k]) : def;
 
-const NO_SENDERS = 500;
-const DECAY_FACTOR = 1;
+//  Configuration
+const NO_SENDERS = envInt('NO_SENDERS', 500);
+const DECAY_FACTOR = envInt('DECAY_FACTOR', 1);
+console.log(`\n NO_SENDERS:${NO_SENDERS} - DECAY_FACTOR: ${DECAY_FACTOR}`);
+
+
 
 const CSV_PATH = `simulations/geo-porto/porto_${NO_SENDERS}.csv`;
 const OUT_MAIN = `results/geo/geo_porto_${NO_SENDERS}_k${DECAY_FACTOR}.json`;
@@ -166,7 +129,7 @@ async function parsePorto(csvPath: string): Promise<GpsPoint[][]> {
     return rows;
 }
 
-//  Coordinate utilities  (unchanged)
+//  Coordinate utilities  
 
 function splitDeg(deg: number) {
     const sign = deg >= 0 ? 1 : -1, abs = Math.abs(deg);
@@ -196,7 +159,7 @@ function e7ToGlobalPosition(latE7: number, lonE7: number) {
     };
 }
 
-//  Bounding box  (unchanged)
+//  Bounding box  
 function computeBbox(rows: GpsPoint[][]) {
     const pts = rows.flat();
     const MARGIN = 10_000;
@@ -393,14 +356,6 @@ async function main() {
     await Promise.all([...senders.map(s => s.payBond()), ...verifiers.map(v => v.payBond())]);
     console.log('  Done');
 
-    //  Phase 10: data submission
-    //
-    // Submit every CID first and wait until all are pending (one
-    // DataVerificationRequestedEvent each, emitted by the Owner's
-    // notifyVerificationKeyReady). Counting that event before any await follows
-    // the usual "register the listener before sending" rule so we never miss an
-    // emission that lands inside the same poll cycle.
-
     let pendingReady = 0;
     const onPending = () => {
         pendingReady++;
@@ -427,78 +382,6 @@ async function main() {
     }
     console.log(`\r▶ Pending queue: ${totalCids} / ${totalCids}   `);
 
-    //  Phase 12: resilient verification driver
-    console.log('\n▶ Draining verification queue');
-    let keepGoing = true;
-    let count = 0;
-    while (keepGoing) {
-        try {
-            const map = verifiers.map(async (v: VerifierPrivacySecond) => {
-                return v.requestAndVerify();
-            });
-            const results = await Promise.all(map);
-            for (const result of results) {
-                if(result.dataId !== -1){
-                    console.log(`Verified: ${count++}/${totalCids}`);
-                } else {
-                    keepGoing = false;
-                }
-            }
-        } catch (e) {
-            keepGoing = false;
-        }
-    }
-    console.log('\n▶ DONE');
-
-    // One survivor keeps verifying until no slot is currently available to it.
-    /*
-    const drainSurvivor = async (v: VerifierPrivacySecond) => {
-        while (true) {
-            const {result} = await v.requestAndVerify(true);
-            if (result === VerificationResult.CANNOT_COMPLETE) return;
-        }
-    };
-
-    const done = () => ownerSDK.getValidCount() + ownerSDK.getInvalidCount();
-    const total = BigInt(totalCids);
-
-    let prevDone = -1n;
-    let consecutiveStalls = 0;
-    let timeoutAdvances = 0;
-    let recoveryRounds = 0;
-
-    while (done() < total) {
-        await Promise.all(verifiers.map(drainSurvivor));
-        const completed = done();
-        process.stdout.write(`\r  ${completed} / ${totalCids}   `);
-
-        if (completed >= total) break;
-
-        if (completed === prevDone) {
-            // No survivor could make progress: the remaining work is time-locked
-            // behind abandoned slots. Expire them and try again.
-            await advancePastTimeout(provider);
-            timeoutAdvances++;
-            if (consecutiveStalls === 0) {
-                await Promise.all(verifiers.map(drainSurvivor));
-                recoveryRounds++;
-            }
-            consecutiveStalls++;
-            if (consecutiveStalls > MAX_CONSECUTIVE_STALLS)
-                throw new Error(
-                    `Unrecoverable: ${total - completed} CIDs stuck after ` +
-                    `${timeoutAdvances} timeout advances. Not enough live verifiers?`,
-                );
-        } else {
-            consecutiveStalls = 0;
-        }
-        prevDone = completed;
-    }
-
-    const valid = ownerSDK.getValidCount(), invalid = ownerSDK.getInvalidCount();
-    console.log(`\n  ${valid} valid, ${invalid} invalid`);
-     */
-
     psc.off(psc.getEvent('DataVerificationRequestedEvent'), onPending);
 
     //  Phase 13: close
@@ -506,7 +389,7 @@ async function main() {
     await ownerSDK.closeCampaign();
     await ownerSDK.stopListening();
 
-    //  Phase 14: chunk distribution  (unchanged)
+    //  Phase 14: chunk distribution  
 
     console.log('\n▶ Fetching campaign data');
     const [, , chunkIndices] = await psc.connect(ownerSgn).getCampaignData();
@@ -518,7 +401,7 @@ async function main() {
     const covered = Object.keys(chunkDist).length;
     const totalChunks = CHUNK4_SIDE * CHUNK4_SIDE;
 
-    //  Phase 15: expected decay rewards  (unchanged)
+    //  Phase 15: expected decay rewards  
 
     console.log('▶ Querying getExpectedSenderReward for all chunks');
     const chunkRewards: Record<number, number> = {};
@@ -526,7 +409,6 @@ async function main() {
         chunkRewards[i] = Number(await ownerSDK.getExpectedSenderReward(i));
 
     //  Phase 16: save
-
     const sharedConfigMeta = {
         dataSenderPayout: SENDER_PAYOUT,
         dataVerifierPayout: VERIFIER_PAYOUT,
