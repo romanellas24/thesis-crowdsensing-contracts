@@ -267,7 +267,7 @@ async function main() {
     const {counts: preChunkCounts, maxCount} =
         precomputeChunks(rows, bbox.originLat, bbox.originLon, bbox.chunkSize);
 
-    const maximumDataPerChunk = 5_000;
+    const maximumDataPerChunk = 10_000;
     console.log(`\n▶ Chunk pre-distribution`);
     console.log(`  Chunks hit: ${Object.keys(preChunkCounts).length} / ${CHUNK4_SIDE * CHUNK4_SIDE}`);
     console.log(`  Max in one chunk: ${maxCount}  =>  maximumDataPerChunk: ${maximumDataPerChunk}`);
@@ -463,13 +463,10 @@ async function main() {
     console.log(`║  => ${OUT_MAIN}`.padEnd(54) + '║');
     console.log(`║  => ${OUT_DECAY}`.padEnd(54) + '║');
     console.log('╚══════════════════════════════════════════════════════╝\n');
-    return 0;
+    process.exit(0);
 }
 
 main().catch(err => {
     console.error('\n❌  Simulation failed:', err.message ?? err);
     process.exit(1);
-}).then((res) => {
-    if(res === 0)
-        return;
 });

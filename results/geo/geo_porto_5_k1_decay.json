@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-06-27T15:58:04.019Z",
+  "timestamp": "2026-06-28T07:55:01.158Z",
   "description": "Expected DST for the next CID in each chunk after the simulation. Formula (§2.6.2): 1000 × ((maxPerChunk − count) / maxPerChunk)^(1/2)",
   "config": {
     "dataSenderPayout": 1000,
