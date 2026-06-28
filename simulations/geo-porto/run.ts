@@ -392,7 +392,9 @@ async function main() {
     //  Phase 14: chunk distribution  
 
     console.log('\n▶ Fetching campaign data');
-    const [, , chunkIndices] = await psc.connect(ownerSgn).getCampaignData();
+    const [, , chunkIndices] = await psc.connect(ownerSgn).getCampaignData({
+        gasLimit: 3000000
+    });
     const chunkDist: Record<number, number> = {};
     for (const idx of chunkIndices) {
         const n = Number(idx);
