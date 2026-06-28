@@ -392,7 +392,20 @@ async function main() {
     //  Phase 14: chunk distribution  
 
     console.log('\n▶ Fetching campaign data');
-    const [, , chunkIndices] = await psc.connect(ownerSgn).getCampaignData();
+    const PAGE = 500n;
+    let start = 0n;
+    let total = 0n;
+
+
+    let chunkIndices: bigint[] = [];
+    do {
+        const [, , chunks, t] =
+            await psc.connect(ownerSgn).getCampaignDataRange(start, PAGE);
+        total = t;
+        chunkIndices = chunkIndices.concat(chunks);
+        start += PAGE;
+    } while (start < total);
+
     const chunkDist: Record<number, number> = {};
     for (const idx of chunkIndices) {
         const n = Number(idx);

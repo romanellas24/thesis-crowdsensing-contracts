@@ -549,6 +549,39 @@ contract PrivacyFirstContract {
         }
     }
 
+    function getCampaignDataRange(uint256 start, uint256 count)
+    external
+    view
+    returns (
+        bytes[] memory cids,
+        DataStatus[] memory statuses,
+        uint16[] memory chunks,
+        uint256 total
+    )
+    {
+        require(msg.sender == _owner, "Only owner");
+
+        total = _dataCount;
+
+        // Clamp della finestra: se start è oltre la fine, end == start e ritorni array vuoti.
+        uint256 end = start + count;
+        if (end > total) {
+            end = total;
+        }
+        uint256 len = end > start ? end - start : 0;
+
+        cids = new bytes[](len);
+        statuses = new DataStatus[](len);
+        chunks = new uint16[](len);
+
+        for (uint256 i = 0; i < len; i++) {
+            DataEntry storage e = _dataEntries[start + i];
+            cids[i] = e.encryptedCid;
+            statuses[i] = e.status;
+            chunks[i] = e.chunkIndex;
+        }
+    }
+
     function getConfig() external view returns (Config memory) {
         return _config;
     }
