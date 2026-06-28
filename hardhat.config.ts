@@ -22,8 +22,7 @@ const config: HardhatUserConfig = {
   networks: {
     // GAS CONSUMPTION
     hardhat: {
-      blockGasLimit: 0x1fffffffffffff,
-      gas: 0x1fffffffffffff,
+      blockGasLimit: 1_000_000_000,
       hardfork: "cancun",
     }
     // Block gas CS
