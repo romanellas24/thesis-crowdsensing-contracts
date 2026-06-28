@@ -194,8 +194,8 @@ export class OwnerPrivacySecond extends OwnerPrivacyFirst<PrivacySecondContract>
         const assigned = await this.getAssignedChecks();
         const served = (this.bundleDeliveryCount.get(dataId) ?? 0) + 1;
         if (served >= assigned) {
-            // this.bundleDeliveryCount.delete(dataId);
-            // this.encryptedCidCache.delete(dataId);
+            this.bundleDeliveryCount.delete(dataId);
+            this.encryptedCidCache.delete(dataId);
         } else {
             this.bundleDeliveryCount.set(dataId, served);
         }
