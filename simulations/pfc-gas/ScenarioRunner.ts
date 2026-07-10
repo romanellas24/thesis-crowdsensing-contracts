@@ -267,7 +267,6 @@ export class ScenarioRunner {
         for (let i = 0; i < txs.length; i++) {
             const r = await txs[i].wait();
             this.tracker.record("data_submission", r!.gasUsed, "sender", senderIndices[i]);
-            this.tracker.recordDataSent(senderIndices[i]);
         }
     }
 
@@ -295,9 +294,11 @@ export class ScenarioRunner {
 
                     totalChecks++;
                     pendingExists = true;
-                } catch {
-                    // "No data available for verification" or "Already verifying"
-                    // This verifier has nothing to do right now - skip
+                } catch (e: any) {
+                    if (!e.message?.includes("No data available") &&
+                        !e.message?.includes("Already verifying")) {
+                        this.log(`  Unexpected error V${vi}: ${e.message}`);
+                    }
                 }
             }
 

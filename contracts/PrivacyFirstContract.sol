@@ -204,7 +204,7 @@ contract PrivacyFirstContract {
 
     }
 
-    function _addToPending(uint256 dataId) internal {
+    function _addToPending(uint256 dataId) internal virtual {
         _pendingIndex[dataId] = _pendingDataIds.length;
         _pendingDataIds.push(dataId);
     }
@@ -447,7 +447,7 @@ contract PrivacyFirstContract {
         }
     }
 
-    function _removeFromPending(uint256 dataId) internal {
+    function _removeFromPending(uint256 dataId) internal virtual {
         uint256 idx = _pendingIndex[dataId];
         uint256 lastId = _pendingDataIds[_pendingDataIds.length - 1];
         _pendingDataIds[idx] = lastId;
@@ -546,6 +546,39 @@ contract PrivacyFirstContract {
             cids[i] = _dataEntries[i].encryptedCid;
             statuses[i] = _dataEntries[i].status;
             chunks[i] = _dataEntries[i].chunkIndex;
+        }
+    }
+
+    function getCampaignDataRange(uint256 start, uint256 count)
+    external
+    view
+    returns (
+        bytes[] memory cids,
+        DataStatus[] memory statuses,
+        uint16[] memory chunks,
+        uint256 total
+    )
+    {
+        require(msg.sender == _owner, "Only owner");
+
+        total = _dataCount;
+
+        // Clamp della finestra: se start è oltre la fine, end == start e ritorni array vuoti.
+        uint256 end = start + count;
+        if (end > total) {
+            end = total;
+        }
+        uint256 len = end > start ? end - start : 0;
+
+        cids = new bytes[](len);
+        statuses = new DataStatus[](len);
+        chunks = new uint16[](len);
+
+        for (uint256 i = 0; i < len; i++) {
+            DataEntry storage e = _dataEntries[start + i];
+            cids[i] = e.encryptedCid;
+            statuses[i] = e.status;
+            chunks[i] = e.chunkIndex;
         }
     }
 

@@ -17,7 +17,21 @@ const config: HardhatUserConfig = {
     currency: "USD",
   },
   mocha: {
-    timeout: 30 * 1000
+    timeout: 60 * 1000
+  },
+  networks: {
+    // GAS CONSUMPTION
+    hardhat: {
+      blockGasLimit: 1_000_000_000,
+      hardfork: "cancun",
+    }
+    // Block gas CS
+    /*
+    hardhat : {
+      blockGasLimit: 60_000_000,
+      mining: { auto: false, interval: 200 }
+    }
+     */
   }
 };
 
